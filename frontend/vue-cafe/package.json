@@ -8,6 +8,7 @@
   },
   "scripts": {
     "dev": "vite",
+    "devstart": "nodemon --watch ./src --ext js,ts,vue --exec \"vite\"",
     "build": "run-p type-check \"build-only {@}\" --",
     "preview": "vite preview",
     "test:unit": "vitest",
@@ -18,6 +19,7 @@
     "format": "prettier --write src/"
   },
   "dependencies": {
+    "nodemon": "^3.1.10",
     "pinia": "^3.0.3",
     "vue": "^3.5.22",
     "vue-router": "^4.5.1"
