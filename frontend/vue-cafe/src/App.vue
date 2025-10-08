@@ -1,19 +1,19 @@
-<script setup lang="ts">
-import { RouterLink, RouterView } from 'vue-router'
-</script>
-
 <template>
-  <div id="wrapper">
-    <header id="header">
-      <nav>
-        <RouterLink to="/">Home</RouterLink>
-        <RouterLink to="/calendar">Calendar</RouterLink>
-        <RouterLink to="/kawa">Kawa</RouterLink>
-        <RouterLink to="/contact">Contact</RouterLink>
-        <RouterLink to="/stage">Stage</RouterLink>
-      </nav>
-    </header>
-
-    <RouterView />
+  <div id="wrapper" class="is-preload">
+    <div id="main">
+      <div class="inner">
+      <AppHeader />
+      <RouterView />
+      </div>
+    </div>
+    <div id="sidebar">
+      <Sidebar />
+    </div>
   </div>
 </template>
+
+
+<script setup>
+  import AppHeader from './components/Header.vue'
+  import Sidebar from './components/Sidebar.vue'
+</script>

@@ -2,7 +2,7 @@
 <section id="banner">
 <div class="content">
 <header>
-<h1>BienvenueE sur CAFE</h1>
+<h1>Bienvenue sur CAFE</h1>
 <p>pour et par le DER SIEN (Nikola Tesla) ((GE)) (((E3A)))...</p>
 </header>
 
