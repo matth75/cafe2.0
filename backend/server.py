@@ -3,6 +3,13 @@ from pydantic import BaseModel, field_validator, EmailStr
 from fastapi import FastAPI, Depends, Query
 from fastapi.security import OAuth2PasswordBearer
 
+# custom imports : 'if' statement needed for unit tests
+if __name__ == '__main__':
+    from db_interactions import DataBase
+else:
+    from backend.db_interactions import DataBase
+
+
 app = FastAPI()
 
 oauth2scheme = OAuth2PasswordBearer(tokenUrl="token")
