@@ -3,6 +3,32 @@ from pydantic import BaseModel, field_validator, EmailStr
 from fastapi import FastAPI, Depends, Query
 from fastapi.security import OAuth2PasswordBearer
 import sqlite3
+import jwt
+from jwt.exceptions import InvalidTokenError
+from datetime import datetime, timedelta, timezone
+
+
+# ------- JWT --------
+ACCESS_TOKEN_EXPIRES_MINUTES = 30
+ALGORITHM = "HS256"
+SECRET_KEY = "openssl09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
+
+
+class Token(BaseModel):
+    access_token:str
+    token_type:str
+
+def create_access_token(data:dict, expires_delta:timedelta | None = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRES_MINUTES)
+    to_encode.update({"exp":expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt   
+
+# ----------------------
 
 # custom imports : 'if' statement needed for unit tests
 if __name__ == '__main__' or __name__=="server":

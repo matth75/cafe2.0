@@ -1,5 +1,5 @@
 from fastapi.testclient import TestClient
-from backend.server import app  # your FastAPI app
+from backend.server import app, create_access_token  # your FastAPI app
 from backend.db_webcafe import WebCafeDB
 import pytest
 import sqlite3
@@ -76,3 +76,8 @@ def test_checkUser():
     db.insertUser( "wowawiwo", "name", "prename", "mypwdtouse", "email@email.com", birthdate="2003-12-7", owner=True)
     assert db.userCheckPassword("wowawiwo", "mypwdtouse") == 0
     db.conn.close()
+
+def test_createJWT():
+    data = {"hello":"wow"}
+    mydata = create_access_token(data)
+    print("dummy text")
