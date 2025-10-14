@@ -30,6 +30,11 @@ class User(BaseModel):
     owner:bool | None = False
     noteKfet:Annotated[str, Query(default="NoteDefault", max_length=30)]
     
+
+class UserPassword(BaseModel):
+    login: Annotated[str, Query(min_length=1, max_length=20)]
+    hpwd: Annotated[str, Query(max_length=100)]
+
 class Event(BaseModel):
     pass
 
@@ -39,13 +44,27 @@ class Calendar(BaseModel):
 
 @app.post("/users/create")
 async def create_user(user:User):
-    # automaticaly parses User, if format ok, then check if User in database
-    #TODO: add user in database
+    """automaticaly parses User, if format ok, then adds user in db if possible"""
     db.conn = sqlite3.connect(db.dbname)
     res = db.insertUser(user.login, user.nom, user.prenom, user.hpwd, user.email,
                    superuser=user.superuser, owner=user.owner, noteKfet=user.noteKfet)
     db.conn.close()
     return res
+
+@app.post("/users/login")
+async def check_user(u_pwd:UserPassword):
+    try:
+        db.conn = sqlite3.connect(db.dbname)
+        res = db.userCheckPassword(u_pwd.login, u_pwd.hpwd)
+        db.conn.close()
+        if res == -1:  
+            return "wrong login/password"
+        if res == -2:
+            return "user does not exist"
+        # res == 0
+        return "good login/pwd" #TODO: JWT
+    except:
+        return "could not acces database"
 
 @app.get("/")
 async def read_root():

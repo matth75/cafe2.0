@@ -27,7 +27,7 @@ class WebCafeDB:
 
         # Check if user already exists
         if (self._userExists(login=login)):
-            return False    # do not insert, name already used
+            return f"login already used : {login}"    # do not insert, name already used
         
         c = self.conn.cursor()
         l = f"'{login}', '{nom}', '{prenom}', '{hpwd}','{email}', '{birthdate}', '{superuser}', '{noteKfet}', '{owner}'"
@@ -35,11 +35,11 @@ class WebCafeDB:
             c.execute(f"INSERT INTO users (login, nom, prenom, hpwd, email, birthdate, superuser, noteKfet, owner) VALUES({l})")
             self.conn.commit()
             c.close()
-            return True
+            return f"user : {login} succesfully created"
         
         except: 
             c.close()
-            return False    # if False insertion failed
+            return "could not connect to database"    # if False insertion failed
         
     def deleteUser(self, table_name, login:str=None, id_key:int=None):
         """ Deletes existing user"""
@@ -62,21 +62,21 @@ class WebCafeDB:
             return False   # user does not exist : wrong username/password
         return True
 
-    def userCheck(self, w_username:str, w_hpwd:str):
+    def userCheckPassword(self, login:str, hpwd:str):
         """ Given login page / web fetched username and hashed password,
           check if user already exists and if password matches """
         c = self.conn.cursor()
-        user_info = c.execute("SELECT * FROM users WHERE login = ?", (w_username,)).fetchone()
+        user_info = c.execute("SELECT * FROM users WHERE login = ?", (login,)).fetchone()
 
         if user_info is None:
             # data sanity check already done
-            return False   # user does not exist : wrong username/password
-        if user_info[3] == w_hpwd:
+            return -2   # user does not exist in DB
+        if user_info[4] == hpwd:
             # good password
-            return True
+            return 0    # good login/pwd
         else:
             # wrong password
-            return False    # wrong username/password
+            return -1    # wrong login/password
     
 
 # db = WebCafeDB()

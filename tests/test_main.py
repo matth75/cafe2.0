@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 from backend.server import app  # your FastAPI app
 from backend.db_webcafe import WebCafeDB
 import pytest
+import sqlite3
 
 client = TestClient(app)
 
@@ -59,12 +60,19 @@ def test_create_user():
 
 
 def test_insertUserDB():
-    test_state = True
     dbname = "whatAStupid.db"
     db = WebCafeDB(dbname)
-    test_state = db.insertUser( "wowawiwo", "name", "prename", "azezgfbez", "email@email.com", birthdate="2003-12-7", owner=True)
-    test_state = db.insertUser( "hello4", "name", "wow", "azezgfbez", "fef@email.com", noteKfet="hfesf")
+    db.conn = sqlite3.connect(db.dbname)
+    db.insertUser( "wosef", "name", "prename", "azezgfbez", "email@email.com", birthdate="2003-12-7", owner=True)
+    db.insertUser( "hello4", "name", "wow", "azezgfbez", "fef@email.com", noteKfet="hfesf")
     db.deleteUser('users', login="hello")
-    return test_state
+    db.conn.close()
     
-    
+
+def test_checkUser():
+    dbname = "whatAStupid.db"
+    db = WebCafeDB(dbname)
+    db.conn = sqlite3.connect(db.dbname)
+    db.insertUser( "wowawiwo", "name", "prename", "mypwdtouse", "email@email.com", birthdate="2003-12-7", owner=True)
+    assert db.userCheckPassword("wowawiwo", "mypwdtouse") == 0
+    db.conn.close()
