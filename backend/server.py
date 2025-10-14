@@ -2,26 +2,33 @@ from typing import Annotated
 from pydantic import BaseModel, field_validator, EmailStr
 from fastapi import FastAPI, Depends, Query
 from fastapi.security import OAuth2PasswordBearer
+import sqlite3
 
 # custom imports : 'if' statement needed for unit tests
-if __name__ == '__main__':
-    from db_interactions import DataBase
+if __name__ == '__main__' or __name__=="server":
+    from db_webcafe import WebCafeDB
 else:
-    from backend.db_interactions import DataBase
+    from backend.db_webcafe import WebCafeDB
 
-
-app = FastAPI()
 
 oauth2scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # create FastAPI app
 app = FastAPI()
 
+db = WebCafeDB()
+
 # define a request model for sending data (POST)
 class User(BaseModel):
-    username: Annotated[str, Query(min_length=4, max_length=10)]
-    email:EmailStr 
-    hashed_pwd : Annotated[str, Query(min_length=4)]
+    login: Annotated[str, Query(min_length=1, max_length=20)]
+    email:Annotated[EmailStr, Query(max_length=50)]
+    nom:Annotated[str, Query(max_length=30)]
+    prenom:Annotated[str, Query(max_length=30)]
+    hpwd:Annotated[str, Query(max_length=100)]
+    # birthdate
+    superuser:bool | None = False
+    owner:bool | None = False
+    noteKfet:Annotated[str, Query(default="NoteDefault", max_length=30)]
     
 class Event(BaseModel):
     pass
@@ -30,11 +37,15 @@ class Calendar(BaseModel):
     pass
 
 
-@app.post("/create")
+@app.post("/users/create")
 async def create_user(user:User):
     # automaticaly parses User, if format ok, then check if User in database
     #TODO: add user in database
-    return 0
+    db.conn = sqlite3.connect(db.dbname)
+    res = db.insertUser(user.login, user.nom, user.prenom, user.hpwd, user.email,
+                   superuser=user.superuser, owner=user.owner, noteKfet=user.noteKfet)
+    db.conn.close()
+    return res
 
 @app.get("/")
 async def read_root():

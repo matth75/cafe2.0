@@ -28,10 +28,12 @@ class DataBase:
             c.close()
             return False
         
-    def insertValues(self, table_name, values:str):
+    def insertValues(self, table_name, *values:str):
         c = self.conn.cursor()
+        l = "'" + "','".join(values) + "'"
+        print(l)
         try:
-            c.execute(f"insert into {table_name} values({values})")
+            c.execute(f"insert into {table_name} values({l})")
             self.conn.commit()
             c.close()
             return True
