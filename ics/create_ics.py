@@ -1,88 +1,103 @@
-from ics import Calendar, Event
+from icalendar import Calendar, Event
 import json
 import argparse
 from pathlib import Path
+from dateutil import parser as dtparse
+
+def parse_dt(value):
+    if value is None:
+        return None
+    if hasattr(value, "year"):
+        return value
+    return dtparse.parse(value)
 
 class MyCalendar:
-    def __init__(self, id):
-        self.id = id
-        self.c = Calendar(creator=id)
+    def __init__(self,ics_path: str | Path, cal_id: str, name: str = "My Calendar"):
+        self.id = cal_id
+        self.ics_path = Path(ics_path)
+        if self.ics_path.exists():
+            with self.ics_path.open('rb') as f:
+                self.c = Calendar.from_ical(f.read())
+        else:
+            self.c = Calendar()
+            self.c.add('prodid', f'-//{cal_id}//')
+            self.c.add('version', '2.0')
+            self.c.add('X-WR-CALNAME', name)
 
-    def addEvent(self, json_event):
+    def __repr__(self):
+        return self.c.to_ical().decode()
+    
+    def _index_by_uid(self):
+        """Return dict: uid (str) -> VEVENT component."""
+        
+        by_uid = {}
+        for comp in self.c.walk("VEVENT"):
+            uid = comp.get("uid")
+            if uid:
+                by_uid[str(uid)] = comp
+        return by_uid
+
+    def open_json(self, json_path: str | Path):
+        json_path = Path(json_path)
+        if not json_path.is_file():
+            raise FileNotFoundError(f"JSON file '{json_path}' does not exist.")
+        with json_path.open('r') as f:
+            return json.load(f)
+
+
+    def addEvent(self, json_path):
+        json_event = self.open_json(json_path)
         for evt in json_event:
             e = Event()
-            e.uid = evt['id']
-            e.name = evt['title']
-            e.begin = evt['start']
-            if evt.get('end'):
-                e.end = evt.get('end')
-            e.location = evt['location']
-            e.description = evt['description']
-            self.c.events.add(e)
+            e.add("uid", evt['id'])
+            e.add("summary", evt['title'])
 
-    def modifyEvent(self, json_event):
-        by_uid = {e.uid: e for e in self.c.events}
+            dtsrart = parse_dt(evt['start'])
+            if not dtsrart:
+                continue
+
+            e.add("dtstart", dtsrart)
+
+            dtend = parse_dt(evt['end'])
+            if dtend:
+                e.add("dtend", dtend)
+
+            e.add("location", evt['location'])
+            e.add("description", evt['description'])
+
+            self.c.add_component(e)
+
+    def modifyEvent(self, json_path):
+        json_event = self.open_json(json_path)
+        by_uid = self._index_by_uid()
         for evt in json_event:
             target = by_uid.get(evt["id"])
             if not target:
                 continue
             if "title" in evt:
-                target.name = evt["title"]
+                target["summary"] = evt["title"]
             if "start" in evt:
-                target.begin = evt["start"]
+                target["dtstart"] = parse_dt(evt["start"])
             if "end" in evt:
-                target.end = evt["end"]
+                target["dtend"] = parse_dt(evt["end"])
             if "location" in evt:
-                target.location = evt["location"]
+                target["location"] = evt["location"]
             if "description" in evt:
-                target.description = evt["description"]
+                target["description"] = evt["description"]
                        
     
-    def supEvent(self, json_event):
+    def supEvent(self, json_path):
+        json_event = self.open_json(json_path)
         uids_to_del = {evt["id"] for evt in json_event}
-        for e in list(self.c.events):
-            if e.uid in uids_to_del:
-                self.c.events.discard(e)
+        to_remove = []
+        for comp in self.c.subcomponents:
+            if comp.name == "VEVENT":
+                uid = comp.get("uid")
+                if uid and str(uid) in uids_to_del:
+                    to_remove.append(comp)
+        for comp in to_remove:
+            self.c.subcomponents.remove(comp)
 
-    def save(self, path):
-        with open(path, 'w') as f:
-            f.writelines(self.c.serialize_iter())
-
-
-def main():
-    parser = argparse.ArgumentParser(description="Create or modify an ICS file from JSON data.")
-    parser.add_argument("json_path", type=str, help="Path to the JSON file containing event data.")
-    parser.add_argument("id", type=str, help="Calendar ID.")
-    parser.add_argument("action", type=str, choices=["add", "modify", "sup"], help="Action to perform: add, modify, or sup.")
-    parser.add_argument("ics_path", type=str, help="Path to the output ICS file")
-
-    args = parser.parse_args()
-    if not Path(args.json_path).is_file():
-        print(f"Error: JSON file '{args.json_path}' does not exist.")
-        return
-    with open(args.json_path, 'r') as f:
-        json_event = json.load(f)
-    
-    if not Path(args.ics_path).exists():
-        cal = MyCalendar(args.id)
-    else:
-        with open(args.ics_path, 'r') as f:
-            cal = MyCalendar(args.id)
-            cal.c = Calendar(f.read())
-
-    if args.action == "add":
-        cal.addEvent(json_event)
-    elif args.action == "modify":
-        cal.modifyEvent(json_event)
-    elif args.action == "sup":
-        cal.supEvent(json_event)
-
-    cal.save(args.ics_path)
-
-        
-
-     
-
-if __name__ == "__main__":
-    main()
-
+    def save(self):
+        with self.ics_path.open('wb') as f:
+            f.write(self.c.to_ical())

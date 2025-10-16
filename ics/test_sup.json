@@ -1,14 +1,5 @@
 [
   {
-    "id": "evt-001",
-    "title": "Matière",
-    "start": "2025-10-15T08:00:00+02:00",
-    "end": "2025-10-15T12:15:00+02:00", 
-    "location": "Salle",
-    "description": "Prof2",
-    "allDay": false
-  },
-  {
     "id": "evt-002",
     "title": "Matière",
     "start": "2025-10-15T08:00:00+02:00",

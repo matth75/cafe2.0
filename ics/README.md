@@ -1,1 +1,1 @@
-Pour utiliser le script, executer une ligne de commande, exemple python3 create_ics.py "test.json" 1 "add" "test.ics"
+Voir exemple.py pour un exemple d'utilisation
