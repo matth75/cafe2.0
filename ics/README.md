@@ -1,0 +1,1 @@
+Voir exemple.py pour un exemple d'utilisation
