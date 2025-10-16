@@ -2,4 +2,4 @@ python=3.12
 fastapi
 pytest
 requests
-sqlite3
+sqlite3 

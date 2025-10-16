@@ -7,7 +7,7 @@ class WebCafeDB:
         if dbname is not None:
             self.dbname = dbname
         try:
-            self.conn = sqlite3.connect(self.dbname)
+            self.conn = sqlite3.connect(self.dbname, check_same_thread=False)
             # if db is empty create tables !
             c = self.conn.cursor()
             c.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT,' \
@@ -71,7 +71,7 @@ class WebCafeDB:
         if user_info is None:
             # data sanity check already done
             return -2   # user does not exist in DB
-        if user_info[4] == hpwd:
+        if user_info[4] == hpwd:    # 4th column of db
             # good password
             return 0    # good login/pwd
         else:
@@ -82,6 +82,3 @@ class WebCafeDB:
 # db = WebCafeDB()
 # res = db.insertUser(1, "hello", "name", "prename", "azezgfbez", "email@email.com", birthdate="2003-12-7", owner=True)
 # print(db.userCheck("jonny", "abcd"))
-
-        
-
