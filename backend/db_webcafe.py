@@ -78,7 +78,14 @@ class WebCafeDB:
             # wrong password
             return -1    # wrong login/password
     
-
+    def get_user(self, login:str):
+        c = self.conn.cursor()
+        try:
+            user_info = c.execute("SELECT * FROM users WHERE login = ?", (login,)).fetchone()
+            return user_info[:]
+        except:
+            return "db offline or login doesnt exist"
+        
 # db = WebCafeDB()
 # res = db.insertUser(1, "hello", "name", "prename", "azezgfbez", "email@email.com", birthdate="2003-12-7", owner=True)
 # print(db.userCheck("jonny", "abcd"))

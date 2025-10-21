@@ -81,3 +81,12 @@ def test_createJWT():
     data = {"hello":"wow"}
     mydata = create_access_token(data)
     print("dummy text")
+
+
+def test_getUser():
+    db = WebCafeDB("whatAStupid.db")
+    db.conn = sqlite3.connect("whatAStupid.db")
+    db.insertUser("wowawiwo", "name", "prename", "mypwdtouse", "email@email.com", birthdate="2003-12-7", superuser=True, owner=True)
+    res = db.get_user("wowawiwo")
+    assert res[2] == "name" 
+    db.conn.close()

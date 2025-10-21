@@ -7,7 +7,8 @@ import jwt
 from jwt.exceptions import InvalidTokenError
 from datetime import datetime, timedelta, timezone
 from pwdlib import PasswordHash
-
+from fastapi.responses import FileResponse
+from fastapi.middleware.cors import CORSMiddleware
 
 # ------- JWT --------
 ACCESS_TOKEN_EXPIRES_MINUTES = 30
@@ -44,6 +45,17 @@ oauth2scheme = OAuth2PasswordBearer(tokenUrl="token")   # url which it defaults 
 # create FastAPI app
 app = FastAPI()
 
+
+# enable CORS : 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 db = WebCafeDB()
 
 # define a request model for sending data (POST)
@@ -75,7 +87,7 @@ async def create_user(user:User):
     """automaticaly parses User, if format ok, then adds user in db if possible"""
     # try 10 times with wait if SQL base already used ?
     db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
-    res = db.insertUser(user.login, user.nom, user.prenom, pwd_hash.hash(user.hpwd), user.email,
+    res = db.insertUser(user.login, user.nom, user.prenom, user.hpwd, user.email,
                    superuser=user.superuser, owner=user.owner, noteKfet=user.noteKfet)
     db.conn.close()
     return res
@@ -176,9 +188,10 @@ dummyICS = ["icsM1", "icsM2"]
 list_authorized_M1 = ["mylogin", "hello4"]
 
 @app.get("/users/me")
-async def get_my_info(current_user : Annotated[str, Depends(get_current_user)]):
-
-    return current_user
+async def get_my_info(current_user_login : Annotated[str, Depends(get_current_user)]):
+    db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+    user_info = db.get_user(current_user_login)
+    return user_info
 
 @app.get("/ics/M2")
 async def post_calendar(current_login : Annotated[str, Depends(get_current_user)]): 
@@ -189,4 +202,8 @@ async def post_calendar(current_login : Annotated[str, Depends(get_current_user)
 
 @app.get("/")
 async def read_root():
-    return {"message":"Hello, World!"}
+    return {"Welcome to the webcafe server"}
+
+@app.get("/ics/testICS")
+async def return_test_ics():
+    return FileResponse("../ics/test.ics", filename="test.ics", media_type="text/ics")
