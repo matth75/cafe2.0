@@ -26,3 +26,5 @@ src/
     ├── Calendar.vue
     └── Contact.vue
 ``
+# Serveur
+npm run dev

@@ -12,5 +12,5 @@
 
 
 <script setup>
-//import Icons from './Icons.vue'
+import Icons from './Icons.vue'
 </script>

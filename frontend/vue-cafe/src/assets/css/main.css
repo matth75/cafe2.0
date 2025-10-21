@@ -1915,6 +1915,19 @@ button,
   #search form input[type="text"] {
     padding-right: 2.75em; }
 
+  .btn-toggle {
+  background: none;
+  border: 1px solid #ccc;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-bottom: 10px;
+}
+
+.sidebar-hidden #sidebar {
+  display: none;
+}
+
 #sidebar {
   -moz-flex-grow: 0;
   -webkit-flex-grow: 0;
