@@ -20,7 +20,7 @@ class WebCafeDB:
         
 
     def insertUser(self, login:str, nom:str, prenom:str,
-                    hpwd:str, email:str, birthdate="2000-1-1", superuser=False, noteKfet="", owner=False):
+                    hpwd:str, email:str, birthdate="2000-01-01", superuser=False, noteKfet="", owner=False):
         
         """ Create new User with example syntax : 
         db.insertUser(table_name, "login", "email@email.com", "h_password", ...)"""
@@ -67,7 +67,7 @@ class WebCafeDB:
           check if user already exists and if password matches """
         c = self.conn.cursor()
         user_info = c.execute("SELECT * FROM users WHERE login = ?", (login,)).fetchone()
-
+        c.close()
         if user_info is None:
             # data sanity check already done
             return -2   # user does not exist in DB
@@ -79,10 +79,13 @@ class WebCafeDB:
             return -1    # wrong login/password
     
     def get_user(self, login:str):
-        c = self.conn.cursor()
         try:
+            c = self.conn.cursor()
             user_info = c.execute("SELECT * FROM users WHERE login = ?", (login,)).fetchone()
-            return user_info[:]
+            c.close()
+            # return JSON like data, without password
+            return {"login":str(user_info[1]), "nom":str(user_info[2]), "prenom":str(user_info[3]),
+                    "email":str(user_info[5]), "birthday":str(user_info[6]), "superuser": str(user_info[7]), "owner":str(user_info[9]), "noteKfet":str(user_info[8])}
         except:
             return "db offline or login doesnt exist"
         

@@ -5,7 +5,7 @@ from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import sqlite3
 import jwt
 from jwt.exceptions import InvalidTokenError
-from datetime import datetime, timedelta, timezone
+from datetime import date, timedelta, timezone, datetime
 from pwdlib import PasswordHash
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -65,7 +65,7 @@ class User(BaseModel):
     nom:Annotated[str, Query(max_length=30)]
     prenom:Annotated[str, Query(max_length=30)]
     hpwd:Annotated[str, Query(max_length=100)]
-    # birthdate
+    birthday:Annotated[date, Query(default="2000-01-01")] 
     superuser:bool | None = False
     owner:bool | None = False
     noteKfet:Annotated[str, Query(default="NoteDefault", max_length=30)]
@@ -88,7 +88,7 @@ async def create_user(user:User):
     # try 10 times with wait if SQL base already used ?
     db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
     res = db.insertUser(user.login, user.nom, user.prenom, user.hpwd, user.email,
-                   superuser=user.superuser, owner=user.owner, noteKfet=user.noteKfet)
+                   superuser=user.superuser, owner=user.owner, noteKfet=user.noteKfet, birthdate=user.birthday)
     db.conn.close()
     if res == -1:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists")
@@ -197,6 +197,7 @@ list_authorized_M1 = ["mylogin", "hello4"]
 async def get_my_info(current_user_login : Annotated[str, Depends(get_current_user)]):
     db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
     user_info = db.get_user(current_user_login)
+    db.conn.close()
     return user_info
 
 @app.get("/ics/M2")
