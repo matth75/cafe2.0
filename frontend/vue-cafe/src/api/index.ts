@@ -36,6 +36,7 @@ export function calendarIcsUrl(slug: string) {
 
 /* ---- API functions (exemples) ---- */
 
+// ----- Register ---- 
 export interface RegisterPayload {
   login: string;
   email: string;
@@ -51,25 +52,41 @@ export async function registerUser(payload: RegisterPayload) {
   return data;
 }
 
-
-export interface LoginPayload {
-  login: string;
-  hpwd: string;
+// ----- Login ----
+// @ token/login 
+// application/x-www-form-urlencoded
+export async function loginUser({ username, password }: { username: string; password: string }) {
+  const body = new URLSearchParams({
+    grant_type: "password",
+    username,
+    password,
+    // scope 
+  });
+  // Axios sets the header automatically for URLSearchParams,
+  // but adding it is fine and explicit:
+  return client.post("/token", body, {
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+  });
 }
-export async function loginUser(payload: LoginPayload) {
-  const { data } = await client.post("/token/login", payload);
+
+
+
+
+
+
+
+// ----- Get Users INFO----
+// JWTokens 
+export async function getUsersInfo(token?: string) {
+  const headers = token
+    ? { Authorization: `Bearer ${token}` }
+    : undefined;
+
+  const { data } = await client.get("/users/me", { headers });
   return data;
 }
 
-export async function getUsersInfo() {
-  const { data } = await client.get("/users/info");
-  return data;
-}
 
-export async function createUser(payload: { name: string; qty: number; mdp: string; mail: string }) {
-  const { data } = await client.post("/users/create", payload);
-  return data;
-}
 
 export async function getCalendars(params?: Record<string, any>) {
   const { data } = await client.get("/calendars", { params });
@@ -89,7 +106,6 @@ export default {
   registerUser,
   loginUser,
   getUsersInfo,
-  createUser,
   getCalendars,
   getEvents,
 };
