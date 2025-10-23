@@ -87,6 +87,37 @@ export async function getUsersInfo(token?: string) {
 }
 
 
+export interface UserProfile {
+  login: string
+  nom: string
+  prenom: string
+  email: string
+  birthday: string       //ou Date ?
+  superuser: boolean
+  owner: boolean
+  noteKfet: string
+}
+
+function toBoolStr(v: unknown): boolean {
+  // L’API renvoie "True"/"False" (strings)
+  return String(v).toLowerCase() === 'true'
+}
+
+export function mapApiUser(u: any): UserProfile {
+  return {
+    login: u.login ?? '',
+    nom: u.nom ?? '',
+    prenom: u.prenom ?? '',
+    email: u.email ?? '',
+    birthday: u.birthday ?? '',      // ex: "2000-1-1"
+    superuser: toBoolStr(u.superuser),
+    owner: toBoolStr(u.owner),
+    noteKfet: u.noteKfet ?? '',
+  }
+}
+
+
+
 
 export async function getCalendars(params?: Record<string, any>) {
   const { data } = await client.get("/calendars", { params });

@@ -1,7 +1,7 @@
 <template>
   <section class="content">
     <header class="major">
-      <h1>Bienvenue {{ userInfo[0] }}</h1>
+      <h1>Bienvenue {{user?.prenom}}</h1>
       <p>Voici les informations liées à votre compte CAFE.</p>
     </header>
 
@@ -13,32 +13,32 @@
       {{ error }}
     </div>
 
-    <div v-else-if="userInfo" class="profile-card">
+    <div v-else-if="user" class="profile-card">
       <div class="profile-header">
         <div class="avatar" aria-hidden="true">
-          coucou
+          {{user.prenom.charAt(0)}}{{user.nom.charAt(0)}}
         </div>
         <div>
-          <h2>{{ userInfo[1] }} {{ userInfo[0] }}</h2>
-          <p class="muted">{{ userInfo[2]    }}</p>
+          <h2>{{ user.prenom }} {{ user.nom }}</h2>
+          <p class="muted">{{ user.email }}</p>
         </div>
       </div>
 
       <dl class="profile-details">
-        <div class="detail">
+        <!-- <div class="detail">
           <dt>Identifiant</dt>
-          <dd>{{ userInfo[3] }}</dd>
-        </div>
+          <dd>{{ user.login }}</dd>
+        </div> -->
         <div class="detail">
           <dt>Rôle</dt>
           <dd>
-            <span class="tag">{{ userInfo[4] ? 'Administrateur' : 'élève' }}</span>
-            <span class="tag" v-if="userInfo[5]">Administrateur</span>
+            <span class="tag">{{ user.superuser ? 'Administrateur' : 'élève' }}</span>
+            <span class="tag" v-if="user.owner">Propriétaire</span>
           </dd>
         </div>
         <div class="detail">
           <dt>Note Kfet</dt>
-          <dd>{{ userInfo[6] || '—' }}</dd>
+          <dd>{{ user.noteKfet || '—' }}</dd>
         </div>
       </dl>
 
@@ -49,6 +49,9 @@
         <button class="button" type="button" @click="refresh">
           Rafraîchir
         </button>
+        <button class="button primary" type="button" @click="logout">
+          Se déconnecter
+        </button>
       </footer>
     </div>
   </section>
@@ -57,13 +60,14 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getUsersInfo } from '@/api'
+import { getUsersInfo, mapApiUser } from '@/api'
 
 interface UserProfile {
   login: string
-  email: string
   nom: string
   prenom: string
+  email: string
+  birthday: string
   superuser: boolean
   owner: boolean
   noteKfet: string | null
@@ -72,7 +76,8 @@ interface UserProfile {
 const route = useRoute()
 const router = useRouter()
 
-const userInfo = ref<string[]>([])
+
+const user = ref<UserProfile | null>(null)
 const token = ref<string | null>(null)
 const isLoading = ref(false)
 const error = ref<string | null>(null)
@@ -93,9 +98,10 @@ async function fetchProfile() {
   isLoading.value = true
   error.value = null
 
-  try {
-    userInfo.value = await getUsersInfo(token.value)
-
+  try {  
+    const rawUser = await getUsersInfo(token.value)
+    user.value = mapApiUser(rawUser)
+    
 
   } catch (err: unknown) {
     if (
@@ -117,6 +123,11 @@ async function fetchProfile() {
 
 function refresh() {
   fetchProfile()
+}
+
+function logout() {
+  localStorage.removeItem('cafe_token')
+  router.push({ name: 'login' })
 }
 
 
