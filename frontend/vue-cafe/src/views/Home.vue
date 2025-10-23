@@ -10,7 +10,7 @@
 <div style="text-align: center;">
 <RouterLink class="button Button_principal" to="/register">Inscription</RouterLink>
 &nbsp; &nbsp; &nbsp;
-<RouterLink class="button Button_principal" to="/login">Connexion</RouterLink>
+<RouterLink class="button Button_principal" to="/Login">Connexion</RouterLink>
 </div>
 
 
@@ -27,5 +27,5 @@
 
 
 <script setup>
-// Si tu veux loader des données plus tard, utilise onMounted etc.
+// Si tu veux loader des données plus tard
 </script>

@@ -28,3 +28,6 @@ src/
 ``
 # Serveur
 npm run dev
+
+# se connecter à la pi par tunnel ssh
+sudo ssh -L 8080:localhost:8000 tpreso01@cafe.zpq.ens-paris-saclay.fr 
