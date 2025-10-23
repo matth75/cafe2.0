@@ -13,7 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # ------- JWT --------
 ACCESS_TOKEN_EXPIRES_MINUTES = 30
 ALGORITHM = "HS256"
-SECRET_KEY = "openssl09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
+SECRET_KEY = "060d236eebec58d5c66cbab9b9961a7d38414536b5d1c7e3d0286eaa25ff765e"
 
 pwd_hash = PasswordHash.recommended()
 
@@ -82,7 +82,7 @@ class Calendar(BaseModel):
     pass
 
 
-@app.post("/users/create")
+@app.post("/users/create", status_code=status.HTTP_201_CREATED)
 async def create_user(user:User):
     """automaticaly parses User, if format ok, then adds user in db if possible"""
     # try 10 times with wait if SQL base already used ?
@@ -90,7 +90,11 @@ async def create_user(user:User):
     res = db.insertUser(user.login, user.nom, user.prenom, user.hpwd, user.email,
                    superuser=user.superuser, owner=user.owner, noteKfet=user.noteKfet)
     db.conn.close()
-    return res
+    if res == -1:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists")
+    if res == -2:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database unreacheable")
+    return {"message":"User succesfully created", "login":str(user.login)}
 
 @app.post("/users/login")
 async def check_user(u_pwd:UserPassword):
@@ -179,7 +183,9 @@ async def get_current_user(token: Annotated[str, Depends(oauth2scheme)]):
         login = payload.get("sub")
         if login is None:
             raise credentials_exception
-    except InvalidTokenError:
+    except jwt.ExpiredSignatureError: 
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="JWT has expired")
+    except jwt.InvalidTokenError:
         raise credentials_exception
     return login
 

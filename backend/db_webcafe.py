@@ -27,7 +27,7 @@ class WebCafeDB:
 
         # Check if user already exists
         if (self._userExists(login=login)):
-            return f"login already used : {login}"    # do not insert, name already used
+            return -1   # login already used : do not insert, name already used
         
         c = self.conn.cursor()
         l = f"'{login}', '{nom}', '{prenom}', '{hpwd}','{email}', '{birthdate}', '{superuser}', '{noteKfet}', '{owner}'"
@@ -35,11 +35,11 @@ class WebCafeDB:
             c.execute(f"INSERT INTO users (login, nom, prenom, hpwd, email, birthdate, superuser, noteKfet, owner) VALUES({l})")
             self.conn.commit()
             c.close()
-            return f"user : {login} succesfully created"
+            return 1 #user : {login} succesfully created
         
         except: 
             c.close()
-            return "could not connect to database"    # if False insertion failed
+            return -2    # if False insertion failed
         
     def deleteUser(self, table_name, login:str=None, id_key:int=None):
         """ Deletes existing user"""
