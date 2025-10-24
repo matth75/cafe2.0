@@ -209,7 +209,7 @@ async def post_calendar(current_login : Annotated[str, Depends(get_current_user)
 
 @app.get("/")
 async def read_root():
-    return {"Welcome to the webcafe server"}
+    return {"message":"Welcome to the webcafe server"}
 
 @app.get("/ics/testICS")
 async def return_test_ics():

@@ -9,7 +9,9 @@ client = TestClient(app)
 def test_read_root():
     response = client.get("/")
     assert response.status_code == 200
-    assert response.json() == {"message": "Hello, World!"}
+    assert response.json() == {"message":"Welcome to the webcafe server"}
+
+dbname = "whatAStupid.db"
 
 dummy_user_data = {
     "login":"mrouet",
@@ -19,6 +21,17 @@ dummy_user_data = {
     "email":"my.email@gmail.com",
     "hpwd":"xdfsdfefbdgrzbeag1234"
 }
+
+dummy_user_data2 = {
+    "login":"008",
+    "nom":"sefes",
+    "prenom":"007",
+    "superuser":True,
+    "email":"my.email@gmail.com",
+    "hpwd":"xdfsdfefbdgrzbeag1234"
+}
+
+user_data_to_check = [dummy_user_data, dummy_user_data2]
 
 wrong_user_data = [
 {
@@ -73,9 +86,19 @@ def test_checkUser():
     dbname = "whatAStupid.db"
     db = WebCafeDB(dbname)
     db.conn = sqlite3.connect(db.dbname)
-    db.insertUser( "wowawiwo", "name", "prename", "mypwdtouse", "email@email.com", birthdate="2003-12-7", owner=True)
-    assert db.userCheckPassword("wowawiwo", "mypwdtouse") == 0
+    db.insertUser( "007", "name", "prename", "mypwdtouse", "email@email.com", birthdate="2003-12-7", owner=True)
+    assert db.userCheckPassword("007", "mypwdtouse") == 0
     db.conn.close()
+
+def test_extensiveCheckUser():
+    db = WebCafeDB(dbname)
+    db.conn = sqlite3.connect(db.dbname)
+    for j in user_data_to_check:
+        db.insertUser(login=j["login"], nom=j["nom"], prenom=j["prenom"], hpwd=j["hpwd"], email=j["email"])
+        assert db.userCheckPassword(j["login"], j["hpwd"]) == 0
+        user_info = db.get_user(j["login"])
+        assert user_info["login"]==j["login"]
+
 
 def test_createJWT():
     data = {"hello":"wow"}
@@ -88,5 +111,6 @@ def test_getUser():
     db.conn = sqlite3.connect("whatAStupid.db")
     db.insertUser("wowawiwo", "name", "prename", "mypwdtouse", "email@email.com", birthdate="2003-12-7", superuser=True, owner=True)
     res = db.get_user("wowawiwo")
-    assert res[2] == "name" 
+    assert res["login"] ==  "wowawiwo"
+    assert res["email"] == "email@email.com"
     db.conn.close()
