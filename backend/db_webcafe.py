@@ -12,8 +12,8 @@ class WebCafeDB:
             c = self.conn.cursor()
             c.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT,' \
             ' login CHAR(20), nom CHAR(30), prenom CHAR(30),' \
-            ' hpwd VARCHAN(100), email CHAR(30), birthdate DATE,' \
-            ' superuser BIT, noteKfet VARCHAN(30), owner BIT)')
+            ' hpwd CHAR(100), email CHAR(30), birthdate DATE,' \
+            ' superuser BIT, noteKfet CHAR(30), owner BIT)')
             self.conn.close()
         except:
             raise ConnectionError(f"Unable to connect / create database : {dbname}")
