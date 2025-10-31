@@ -9,6 +9,7 @@ from datetime import date, timedelta, timezone, datetime
 from pwdlib import PasswordHash
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+import re
 
 # ------- JWT --------
 ACCESS_TOKEN_EXPIRES_MINUTES = 30
@@ -69,6 +70,18 @@ class User(BaseModel):
     superuser:bool | None = False
     owner:bool | None = False
     noteKfet:Annotated[str, Query(default="NoteDefault", max_length=30)]
+    
+    
+    @field_validator('*', mode='before')
+    def sanitize_strings(cls, v):
+        if isinstance(v, str):
+            # Strip spaces
+            v = v.strip()
+
+            # Reject strings with SQL metacharacters
+            if re.search(r"[;'\"\\]", v):
+                raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail=f"Invalid characters {v}")
+        return v
     
 
 class UserPassword(BaseModel):
