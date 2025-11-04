@@ -1,5 +1,16 @@
 import sqlite3
 
+# Handle promotions instances
+dict_promos = {"pas de promo choisie !":0, "Intranet":1, "M1 E3A":2, "PSEE":3, "Saphire":4}
+inverse_promos = {v: k for k, v in dict_promos.items()}
+
+
+def convertPromoStrToInt(p_str:str):
+    if p_str not in dict_promos.keys():
+        return 0
+    else:
+        return dict_promos[p_str]
+
 class WebCafeDB:
     dbname = "webcafe.db"
     users_table = "users"
@@ -25,7 +36,7 @@ class WebCafeDB:
         
 
     def insertUser(self, login:str, nom:str, prenom:str,
-                    hpwd:str, email:str, birthday="2000-01-01", promo_id=0, teacher=False, superuser=False, noteKfet=""):
+                    hpwd:str, email:str, birthday="2000-01-01", promo_str=0, teacher=False, superuser=False, noteKfet=""):
         
         """ Create new User with example syntax : 
         db.insertUser(table_name, "login", "email@email.com", "h_password", ...)"""
@@ -34,6 +45,9 @@ class WebCafeDB:
         if (self._userExists(login=login)):
             return -1   # login already used : do not insert, name already used
         
+        # convert promotion string name to int
+        promo_id = convertPromoStrToInt(promo_str)
+
         c = self.conn.cursor()
         try:
             c.execute("INSERT INTO users (login, email, nom, prenom, hpwd, birthday, promo_id, teacher, superuser, noteKfet) VALUES(? ,? ,?, ?, ?, ?, ?, ?, ?, ?)", 
@@ -88,9 +102,17 @@ class WebCafeDB:
             c = self.conn.cursor()
             user_info = c.execute("SELECT login, nom, prenom, email, birthday, promo_id, teacher, superuser, noteKfet  FROM users WHERE login = ?", (login,)).fetchone()
             c.close()
+            
+            # convert promo int number to string
+            promo_nb = int(user_info[5])
+            if promo_nb in inverse_promos.keys():
+                promo_str = inverse_promos[int(user_info[5])]
+            else:
+                promo_str = "promotion not known ?"
+
             # return JSON like data, without password
             return {"login":str(user_info[0]), "nom":str(user_info[1]), "prenom":str(user_info[2]),
-                    "email":str(user_info[3]), "birthday":str(user_info[4]), "promo_id":str(user_info[5]),
+                    "email":str(user_info[3]), "birthday":str(user_info[4]), "promo_id":promo_str,
                       "teacher": str(user_info[6]), "superuser": str(user_info[7]), "noteKfet":str(user_info[8])}
         except:
             return "db offline or login doesnt exist"
@@ -103,6 +125,9 @@ class WebCafeDB:
         if set(new_infos).issubset(valid_keys):
             c = self.conn.cursor()
             for key,value in new_infos.items():
+                # convert promo str to int
+                if key == "promo_id":
+                    value = convertPromoStrToInt(value)
                 try:
                     query = f"UPDATE users SET {key} = ? WHERE login = ?"
                     c.execute(query, (value, login))
