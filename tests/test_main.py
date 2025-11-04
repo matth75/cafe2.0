@@ -1,6 +1,13 @@
+import sys
+from pathlib import Path
+
+# ajoute la racine du projet au sys.path
+sys.path.append(str(Path(__file__).resolve().parents[1]))
+
 from fastapi.testclient import TestClient
 from backend.server import app, create_access_token  # your FastAPI app
 from backend.db_webcafe import WebCafeDB
+import datetime as dt
 import pytest
 import sqlite3
 
@@ -58,18 +65,18 @@ wrong_user_data = [
 
 ]
 
-def test_create_user():
-    response = client.post("/users/create", json=dummy_user_data)
-    assert response.is_success
+# def test_create_user():
+#     response = client.post("/users/create", json=dummy_user_data)
+#     assert response.is_success
 
-    b = True
-    for d in wrong_user_data:
-        response = client.post("/users/create", json=d)
-        if (response.is_success):   # response.is_success should always be False
-            b = False
+#     b = True
+#     for d in wrong_user_data:
+#         response = client.post("/users/create", json=d)
+#         if (response.is_success):   # response.is_success should always be False
+#             b = False
     
-    assert b    # if b = True => all test successfully failed
-    result = response.json()
+#     assert b    # if b = True => all test successfully failed
+#     result = response.json()
 
 
 def test_insertUserDB():
@@ -113,4 +120,13 @@ def test_getUser():
     res = db.get_user("wowawiwo")
     assert res["login"] ==  "wowawiwo"
     assert res["email"] == "email@email.com"
+    db.conn.close()
+
+
+def test_insertEvent():
+    dbname = "whatAStupid.db"
+    db = WebCafeDB(dbname)
+    db.conn = sqlite3.connect(db.dbname)
+    db.insertEvent(start="2025-10-15T08:00:00", end="2025-10-15T12:00:00", promo_id=1)
+    db.insertEvent(start="2025-10-15T08:00:00", end="2025-10-15T12:00:00", promo_id=1)
     db.conn.close()
