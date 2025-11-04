@@ -37,17 +37,20 @@ export function calendarIcsUrl(slug: string) {
 /* ---- API functions (exemples) ---- */
 
 // ----- Register ---- 
-export interface RegisterPayload {
-  login: string;
-  email: string;
-  nom: string;
-  prenom: string;
-  hpwd: string;
-  superuser: boolean;
-  owner: boolean;
-  noteKfet: string;
+export interface UserProfile {
+  login: string
+  nom: string
+  prenom: string
+  email: string
+  hpwd: string
+  birthday: string 
+  promo_id: string | false
+  superuser: boolean
+  teacher: boolean
+  noteKfet: string
 }
-export async function registerUser(payload: RegisterPayload) {
+
+export async function registerUser(payload: UserProfile) {
   const { data } = await client.post("/users/create", payload);
   return data;
 }
@@ -72,9 +75,6 @@ export async function loginUser({ username, password }: { username: string; pass
 
 
 
-
-
-
 // ----- Get Users INFO----
 // JWTokens 
 export async function getUsersInfo(token?: string) {
@@ -86,17 +86,41 @@ export async function getUsersInfo(token?: string) {
   return data;
 }
 
+// GET available calendars for the user
+export async function getUserCalendars(token?: string) {
+  const headers = token
+    ? { Authorization: `Bearer ${token}` }
+    : undefined;
 
-export interface UserProfile {
-  login: string
-  nom: string
-  prenom: string
-  email: string
-  birthday: string       //ou Date ?
-  superuser: boolean
-  owner: boolean
-  noteKfet: string
+  const { data } = await client.get("/calendars/available", { headers });
+  return data;
 }
+
+
+// ----- Modify User INFO ----
+// modify API db user with frontend user
+export async function modifyUserInfo(payload: Partial<UserProfile>, token?: string) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const { data } = await client.post("/users/modify", payload, { headers });
+  return data;
+}
+
+export async function saveFavoriteCalendar(
+  promo_id : string,
+  token?: string,
+) {
+  return modifyUserInfo(
+    { promo_id } as Partial<UserProfile>,
+    token,
+  );
+}
+
 
 function toBoolStr(v: unknown): boolean {
   // L’API renvoie "True"/"False" (strings)
@@ -104,6 +128,7 @@ function toBoolStr(v: unknown): boolean {
 }
 
 export function mapApiUser(u: any): UserProfile {
+  // 
   return {
     login: u.login ?? '',
     nom: u.nom ?? '',
@@ -111,7 +136,9 @@ export function mapApiUser(u: any): UserProfile {
     email: u.email ?? '',
     birthday: u.birthday ?? '',      // ex: "2000-1-1"
     superuser: toBoolStr(u.superuser),
-    owner: toBoolStr(u.owner),
+    teacher: toBoolStr(u.teacher),
+    promo_id: String(u.promo_id),
+    hpwd: '', // ne pas exposer le mot de passe
     noteKfet: u.noteKfet ?? '',
   }
 }

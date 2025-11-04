@@ -50,14 +50,13 @@
           />
         </div>
         <div class="col-6 col-12-small">
-          <label for="hpwd">Mot de passe</label>
+          <label for="birthday">Date de naissance</label>
           <input
-            id="hpwd"
-            v-model="form.hpwd"
-            type="password"
+            id="birthday"
+            v-model="form.birthday"
+            type="date"
             required
-            autocomplete="new-password"
-            placeholder="Choisissez un mot de passe"
+            autocomplete="bday"
           />
         </div>
         <div class="col-6 col-12-small">
@@ -69,6 +68,18 @@
             placeholder="Oscilloscope"
            />
         </div>
+        <div class="col-6 col-12-small">
+          <label for="hpwd">Mot de passe</label>
+          <input
+            id="hpwd"
+            v-model="form.hpwd"
+            type="password"
+            required
+            autocomplete="new-password"
+            placeholder="Choisissez un mot de passe"
+          />
+        </div>
+        
       </div>
       <p> </p>
       <ul class="actions">
@@ -118,17 +129,19 @@
 
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
-import { registerUser, type RegisterPayload } from '@/api'
+import { registerUser, type UserProfile } from '@/api'
 
-const form = reactive<RegisterPayload>({
+const form = reactive<UserProfile>({
   login: '',
   email: '',
   nom: '',
   prenom: '',
   hpwd: '',
   superuser: false,
-  owner: false,
+  teacher: false,
   noteKfet: '',
+  birthday: '',
+  promo_id: ""
 })
 
 const isSubmitting = ref(false)
@@ -160,8 +173,10 @@ function resetForm(clearFeedback = true) {
   form.prenom = ''
   form.hpwd = ''
   form.superuser = false
-  form.owner = false
+  form.teacher = false
   form.noteKfet = ''
+  form.birthday = ''
+  form.promo_id = false
 
   if (clearFeedback) {
     feedback.value = null
