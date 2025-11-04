@@ -67,7 +67,7 @@ class User(BaseModel):
     prenom:Annotated[str, Query(max_length=30)]
     hpwd:Annotated[str, Query(max_length=100)]
     birthday:Annotated[date, Query(default="2000-01-01")] 
-    promo_id:int | None = 0
+    promo_id:str | None = ""
     teacher:bool | None = False
     superuser:bool | None = False
     noteKfet:Annotated[str, Query(default="NoteDefault", max_length=30)]
@@ -96,6 +96,17 @@ class Calendar(BaseModel):
     pass
 
 
+# Handle promotions instances
+dict_promos = {"M2Fesup":1, "M1E3A":2}
+inverse_promos = {v: k for k, v in dict_promos.items()}
+
+
+def convertPromoStrToInt(p_str:str):
+    if p_str not in dict_promos.keys():
+        return 0
+    else:
+        return dict_promos[p_str]
+
 @app.post("/users/create", status_code=status.HTTP_201_CREATED)
 async def create_user(user:User):
     """automaticaly parses User, if format ok, then adds user in db if possible"""
@@ -107,7 +118,7 @@ async def create_user(user:User):
                         prenom=user.prenom,
                         hpwd=user.hpwd, 
                         email=user.email,
-                        promo_id=user.promo_id, 
+                        promo_id=convertPromoStrToInt(user.promo_id), 
                         superuser=user.superuser,
                         teacher=user.teacher,
                         noteKfet=user.noteKfet,
@@ -235,6 +246,8 @@ async def set_use_teacher(current_user_login : Annotated[str, Depends(get_curren
 async def get_my_info(current_user_login : Annotated[str, Depends(get_current_user)]):
     db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
     user_info = db.get_user(current_user_login)
+    promo_nb = int(user_info["promo_id"])
+    user_info["promo_id"] = inverse_promos[promo_nb]
     db.conn.close()
     return user_info
 

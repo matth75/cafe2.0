@@ -125,5 +125,30 @@ def test_setTeacher():
     assert res == 1
     res = db.set_Teacher("trythis")
     assert res == 1
+    db.conn.close()
 
+
+new_data = [
+    {"promo_id": 23},
+    {"promo_id": '23'},
+    {"nom": "leonard", "birthday":"1704-10-10"}
+]
+
+new_wrong_data = [
+    {},
+    {"wrongkey":""},
+    {"login":"newlogin?!"},
+    {"teacher":False},
+    {"email":"anotherone@email.com"}
+]
+
+def test_modify_info():
+    db = WebCafeDB("whatAStupid.db")
+    db.conn = sqlite3.connect("whatAStupid.db")
+    db.insertUser(login="graal", nom="king", prenom="arthur", hpwd="excalibur", email="oldman@email.com", birthday="1703-12-28", superuser=False, teacher=True)
+    for d in new_data:
+        assert db.user_modify("graal", d) == 1
+    for d in new_wrong_data:
+        res = db.modify_user("graal", d)
+        assert  res == -1 or res == -3  # no data or invalid keys
     db.conn.close()
