@@ -31,7 +31,17 @@ dummy_user_data2 = {
     "hpwd":"xdfsdfefbdgrzbeag1234"
 }
 
-user_data_to_check = [dummy_user_data, dummy_user_data2]
+dummy_user_data3 = {
+    "login":"user",
+    "nom":"me",
+    "prenom":"nothim",
+    "superuser":True,
+    "email":"my.email@gmail.com",
+    "hpwd":"test"
+}
+
+
+user_data_to_check = [dummy_user_data, dummy_user_data2, dummy_user_data3]
 
 wrong_user_data = [
 {
@@ -113,6 +123,7 @@ def test_getUser():
     res = db.get_user("wowawiwo")
     assert res["login"] ==  "wowawiwo"
     assert res["email"] == "email@email.com"
+    res = db.get_user("user")
     db.conn.close()
 
 

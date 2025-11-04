@@ -97,7 +97,7 @@ class Calendar(BaseModel):
 
 
 # Handle promotions instances
-dict_promos = {"M2Fesup":1, "M1E3A":2}
+dict_promos = {"pas de promo choisie !":0, "M2Fesup":1, "M1E3A":2}
 inverse_promos = {v: k for k, v in dict_promos.items()}
 
 
@@ -247,7 +247,8 @@ async def get_my_info(current_user_login : Annotated[str, Depends(get_current_us
     db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
     user_info = db.get_user(current_user_login)
     promo_nb = int(user_info["promo_id"])
-    user_info["promo_id"] = inverse_promos[promo_nb]
+    if promo_nb in inverse_promos.keys():
+        user_info["promo_id"] = inverse_promos[promo_nb]
     db.conn.close()
     return user_info
 
