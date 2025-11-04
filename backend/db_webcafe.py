@@ -109,11 +109,23 @@ class WebCafeDB:
                 promo_str = inverse_promos[int(user_info[5])]
             else:
                 promo_str = "promotion not known ?"
+            
+            inttobool = {0:False, 1:True}
+            try:
+                teacher_bool = inttobool[user_info[6]]
+                
+            except: 
+                teacher_bool = False
+    
+            try:
+                superuser_bool = inttobool[user_info[7]]
+            except:
+                superuser_bool = False
 
             # return JSON like data, without password
             return {"login":str(user_info[0]), "nom":str(user_info[1]), "prenom":str(user_info[2]),
                     "email":str(user_info[3]), "birthday":str(user_info[4]), "promo_id":promo_str,
-                      "teacher": str(user_info[6]), "superuser": str(user_info[7]), "noteKfet":str(user_info[8])}
+                      "teacher": teacher_bool, "superuser":superuser_bool, "noteKfet":str(user_info[8])}
         except:
             return "db offline or login doesnt exist"
         
