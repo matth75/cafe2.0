@@ -95,6 +95,27 @@ class WebCafeDB:
         except:
             return "db offline or login doesnt exist"
         
+    
+    def user_modify(self, login, new_infos:dict):
+        valid_keys = {"nom", "prenom", "promo_id", "birthday", "noteKfet"}
+        if len(new_infos) == 0:
+            return -1   # No info to update
+        if set(new_infos).issubset(valid_keys):
+            c = self.conn.cursor()
+            for key,value in new_infos.items():
+                try:
+                    query = f"UPDATE users SET {key} = ? WHERE login = ?"
+                    c.execute(query, (value, login))
+                    self.conn.commit()
+                except:
+                    return -2 # unable to perform modification
+            c.close()
+            return 1    # all good
+        else:
+            return -3   # wrong values
+
+        
+        
 
     def check_superuser(self, login):
         try:
@@ -116,12 +137,8 @@ class WebCafeDB:
             return 1  # {f"User {login} succesfully set to teacher"   # change to number and to HTTP code result in server.py
         except:
             return -1 # f"Unable to set user '{login}' to teacher"
-        
-    
-    def user_modify(self, login, jsondata):
-        pass
 
-    
+
     def insertEvent(self, start, end, classroom_id:int=0, teacher_id:int=0, promo_id:int=0):
         """ Add an event to the SQL database. Assume start and end are of datetime.datetime format.
         Assuming for now that classroom ids are given, maybe change this parameter later... """

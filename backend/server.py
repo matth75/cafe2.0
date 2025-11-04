@@ -238,13 +238,21 @@ async def get_my_info(current_user_login : Annotated[str, Depends(get_current_us
     db.conn.close()
     return user_info
 
-@app.post("user/modify")
-async def modify_my_data(current_user_login : Annotated[str, Depends(get_current_user)], user_info:User):
-    db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
-    # res = db.modify_my_data
-
-    db.conn.close()
-    return HTTPException(status_code=status.HTTP_202_ACCEPTED)
+@app.post("/users/modify")
+async def modify_my_data(current_user_login : Annotated[str, Depends(get_current_user)], user_info:dict):
+    try :
+        db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+        res = db.user_modify(current_user_login, user_info)
+        db.conn.close()
+        if res == -1:
+            return HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail="empty data to update")
+        if res == -2:
+            return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="unable to edit info")
+        if res == -3:
+            return HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail="wrong fields provided")
+        return HTTPException(status_code=status.HTTP_202_ACCEPTED, detail=f"user {current_user_login} succesfully modified")
+    except:
+        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 @app.get("/ics/M2")
 async def post_calendar(current_login : Annotated[str, Depends(get_current_user)]): 
