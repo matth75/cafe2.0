@@ -1,4 +1,5 @@
 import sqlite3
+import json
 
 # Handle promotions instances
 dict_promos = {"pas de promo choisie !":0, "Intranet":1, "M1 E3A":2, "PSEE":3, "Saphire":4}
@@ -129,6 +130,30 @@ class WebCafeDB:
         except:
             return "db offline or login doesnt exist"
         
+    def user_getall(self):
+        c = self.conn.cursor()
+        users = c.execute("SELECT login, email, teacher, superuser FROM users").fetchall()
+        if users is None:
+            return -1
+        else:
+            result = {}
+            fields = ["email", "teacher", "superuser"]
+            for row in users:
+                key = row[0]
+                values = row[1:]
+                inner_json = {}
+
+                for field, value in zip(fields, values):
+                    if value == 1:
+                        value = True
+                    elif value == 0:
+                        value = False
+                    inner_json[field] = value
+                
+                result[key] = inner_json
+            
+            
+            return result
     
     def user_modify(self, login, new_infos:dict):
         valid_keys = {"nom", "prenom", "promo_id", "birthday", "noteKfet"}

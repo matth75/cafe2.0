@@ -36,7 +36,7 @@ def create_access_token(data:dict, expires_delta:timedelta | None = None):
 
 # custom imports : 'if' statement needed for unit tests
 if __name__ == '__main__' or __name__=="server":
-    from db_webcafe import WebCafeDB
+    from db_webcafe import WebCafeDB, dict_promos
 else:
     from backend.db_webcafe import WebCafeDB
 
@@ -222,6 +222,7 @@ list_authorized_M1 = ["mylogin", "hello4"]
 async def set_use_teacher(current_user_login : Annotated[str, Depends(get_current_user)], new_teacher_login:str):
     db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
     user_rights = db.check_superuser(current_user_login)    # seems ok
+    db.conn.close()
     if user_rights == 1:    # user is superuser
         res = db.set_Teacher(new_teacher_login)
         return HTTPException(status_code=status.HTTP_200_OK, detail=f"User {new_teacher_login} succesfully updated rights to teacher")
@@ -261,6 +262,24 @@ async def post_calendar(current_login : Annotated[str, Depends(get_current_user)
     return "Access denied / not on the list"
 
 
+@app.get("/calendars/available")
+async def get_calendars():
+    return list(dict_promos.keys())[1:]
+
+
+@app.get("/users/all")
+async def get_allUsers(current_user_login : Annotated[str, Depends(get_current_user)]):
+    db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+    user_rights = db.check_superuser(current_user_login)    
+    db.conn.close()
+    if user_rights == 1:
+        db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+        user_info = db.user_getall()
+        db.conn.close()
+        return user_info
+    else:
+        return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"user {current_user_login} is not superuser")
+    
 @app.get("/")
 async def read_root():
     return {"message":"Welcome to the webcafe server"}

@@ -163,3 +163,10 @@ def test_modify_info():
         res = db.modify_user("graal", d)
         assert  res == -1 or res == -3  # no data or invalid keys
     db.conn.close()
+
+
+def test_users_get_all():
+    db = WebCafeDB("whatAStupid.db")
+    db.conn = sqlite3.connect("whatAStupid.db")
+    db.user_getall()
+    db.conn.close()
