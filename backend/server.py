@@ -67,8 +67,9 @@ class User(BaseModel):
     prenom:Annotated[str, Query(max_length=30)]
     hpwd:Annotated[str, Query(max_length=100)]
     birthday:Annotated[date, Query(default="2000-01-01")] 
+    promo_id:int | None = 0
+    teacher:bool | None = False
     superuser:bool | None = False
-    owner:bool | None = False
     noteKfet:Annotated[str, Query(default="NoteDefault", max_length=30)]
     
     
@@ -100,8 +101,18 @@ async def create_user(user:User):
     """automaticaly parses User, if format ok, then adds user in db if possible"""
     # try 10 times with wait if SQL base already used ?
     db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
-    res = db.insertUser(user.login, user.nom, user.prenom, user.hpwd, user.email,
-                   superuser=user.superuser, owner=user.owner, noteKfet=user.noteKfet, birthdate=user.birthday)
+
+    res = db.insertUser(login=user.login,
+                        nom=user.nom,
+                        prenom=user.prenom,
+                        hpwd=user.hpwd, 
+                        email=user.email,
+                        promo_id=user.promo_id, 
+                        superuser=user.superuser,
+                        teacher=user.teacher,
+                        noteKfet=user.noteKfet,
+                        birthday=user.birthday)
+    
     db.conn.close()
     if res == -1:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists")
@@ -206,12 +217,34 @@ async def get_current_user(token: Annotated[str, Depends(oauth2scheme)]):
 dummyICS = ["icsM1", "icsM2"]
 list_authorized_M1 = ["mylogin", "hello4"]
 
+
+@app.post("/rights/set/teacher")
+async def set_use_teacher(current_user_login : Annotated[str, Depends(get_current_user)], new_teacher_login:str):
+    db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+    user_rights = db.check_superuser(current_user_login)    # seems ok
+    if user_rights == 1:    # user is superuser
+        res = db.set_Teacher(new_teacher_login)
+        return HTTPException(status_code=status.HTTP_200_OK, detail=f"User {new_teacher_login} succesfully updated rights to teacher")
+    elif user_rights == -1:
+        raise HTTPException (status_code=status.HTTP_401_UNAUTHORIZED, detail=f"user {current_user_login} is not superuser")
+    else:
+        raise HTTPException (status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="could not reach database")
+
+
 @app.get("/users/me")
 async def get_my_info(current_user_login : Annotated[str, Depends(get_current_user)]):
     db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
     user_info = db.get_user(current_user_login)
     db.conn.close()
     return user_info
+
+@app.post("user/modify")
+async def modify_my_data(current_user_login : Annotated[str, Depends(get_current_user)], user_info:User):
+    db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+    # res = db.modify_my_data
+
+    db.conn.close()
+    return HTTPException(status_code=status.HTTP_202_ACCEPTED)
 
 @app.get("/ics/M2")
 async def post_calendar(current_login : Annotated[str, Depends(get_current_user)]): 
