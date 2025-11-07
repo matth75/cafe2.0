@@ -1,5 +1,7 @@
 import sqlite3
 import json
+from datetime import datetime
+from icalendar import Calendar, Event
 
 # Handle promotions instances
 dict_promos = {"pas de promo choisie !":0, "Intranet":1, "M1 E3A":2, "PSEE":3, "Saphire":4}
@@ -29,7 +31,8 @@ class WebCafeDB:
 
             # create EVENTS table
             c.execute('CREATE TABLE IF NOT EXISTS events (event_id INTEGER PRIMARY KEY AUTOINCREMENT,' \
-            'start DATETIME, end DATETIME, classroom_id INT, teacher_id INT, promo_id INT)')
+            'start DATETIME, end DATETIME, matiere CHAR(30), type_cours CHAR(30),' \
+            ' classroom_id INT, user_id INT, promo_id INT)')
             self.conn.close()
             self.conn.close()
         except:
@@ -107,7 +110,7 @@ class WebCafeDB:
             # convert promo int number to string
             promo_nb = int(user_info[5])
             if promo_nb in inverse_promos.keys():
-                promo_str = inverse_promos[int(user_info[5])]
+                promo_str = inverse_promos[promo_nb]
             else:
                 promo_str = "promotion not known ?"
             
@@ -132,26 +135,34 @@ class WebCafeDB:
         
     def user_getall(self):
         c = self.conn.cursor()
-        users = c.execute("SELECT login, email, teacher, superuser FROM users").fetchall()
+        users = c.execute("SELECT login, email, teacher, superuser, nom, prenom, promo_id FROM users").fetchall()
         if users is None:
             return -1
         else:
             result = {}
-            fields = ["email", "teacher", "superuser"]
+            fields = ["email", "teacher", "superuser", "nom", "prenom", "promo_id"]
             for row in users:
                 key = row[0]
                 values = row[1:]
                 inner_json = {}
 
                 for field, value in zip(fields, values):
-                    if value == 1:
-                        value = True
-                    elif value == 0:
-                        value = False
-                    inner_json[field] = value
-                
+                    # convert teacher and superuser fields
+                    if field == "teacher" or field == "superuser":
+                        if value == 1:
+                            value = True
+                        elif value == 0:
+                            value = False
+                    # convert promo_id
+                    if field == "promo_id":
+                        # convert promo int number to string
+                        promo_nb = int(value)
+                        if promo_nb in inverse_promos.keys():
+                            value = inverse_promos[promo_nb]
+                        else:
+                            value = "promotion not known ?"
+                    inner_json[field] = value   
                 result[key] = inner_json
-            
             
             return result
     
@@ -231,6 +242,95 @@ class WebCafeDB:
 
         return event_info is not None   # True if event exists
         
+    
+    def generate_ics(self, db_name: str, output_file: str, classroom_id: int = None,
+        user_id: int = None, promo_id: int = None):
+        """
+        Generate an .ics calendar file from SQLite 'events' table,
+        filtered by classroom_id, user_id, or promo_id.
+
+        Args:
+            db_path (str): Path to the SQLite database.
+            output_file (str): Path where the .ics file will be saved.
+            classroom_id (int, optional): Filter by classroom_id.
+            user_id (int, optional): Filter by user_id.
+            promo_id (int, optional): Filter by promo_id.
+        """
+
+        # build where condition for filters
+        filters = []
+        params = []
+
+        if classroom_id is not None:
+            filters.append("classroom_id = ?")
+            params.append(classroom_id)
+        if user_id is not None:
+            filters.append("user_id = ?")
+            params.append(user_id)
+        if promo_id is not None:
+            filters.append("promo_id = ?")
+            params.append(promo_id)
+
+        where_clause = ""
+        if filters:
+            where_clause = "WHERE " + " AND ".join(filters)
+
+        self.conn = sqlite3.connect(db_name)
+        cursor = self.conn.cursor()
+
+        query = f"""SELECT event_id, start, end, matiere, type_cours, classroom_id, user_id, promo_id FROM events {where_clause}"""
+        try:
+            cursor.execute(query, params)
+        except:
+            return -2 # could not execute query
+        rows = cursor.fetchall()
+        self.conn.close()
+
+        if not rows:
+            return -1 # No events found for the given filters
+
+        cal = Calendar()
+        cal.add("prodid", "-//Calendrier généré par webcafe//")
+        cal.add("version", "2.0")
+
+        for event in rows:
+            event_id, start, end, matiere, type_cours, c_id, u_id, p_id = event
+
+            # Parse timestamps safely
+            def parse_dt(dt_str):
+                try:
+                    return datetime.fromisoformat(dt_str)
+                except ValueError:
+                    # handle non-ISO formats like "2025-11-04 10:00"
+                    return datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
+
+            start_dt = parse_dt(start)
+            end_dt = parse_dt(end)
+
+            ical_event = Event()
+            ical_event.add("uid", f"{event_id}@school-calendar")
+            ical_event.add("summary", f"{matiere} - {type_cours}")
+            ical_event.add("dtstart", start_dt)
+            ical_event.add("dtend", end_dt)
+            ical_event.add(
+                "description",
+                f"Classroom: {c_id}, User: {u_id}, Promo: {p_id}",
+            )
+            ical_event.add("location", f"Classroom {c_id}")
+            ical_event.add("dtstamp", datetime.utcnow())
+
+            cal.add_component(ical_event)
+
+        try:
+            with open(output_file, "wb") as f:
+                f.write(cal.to_ical())
+        except:
+            return -3 # could not write to file
+
+        return 1 # ics succesfully generated
+
+
+
 # db = WebCafeDB()
 # db.conn = sqlite3.connect("webcafe.db")
 # res = db.insertUser(login="hello", nom="name", prenom="prename", hpwd="azezgfbez", email="email@email.com", birthday="2003-12-7")

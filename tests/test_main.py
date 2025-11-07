@@ -160,7 +160,7 @@ def test_modify_info():
     for d in new_data:
         assert db.user_modify("graal", d) == 1
     for d in new_wrong_data:
-        res = db.modify_user("graal", d)
+        res = db.user_modify("graal", d)
         assert  res == -1 or res == -3  # no data or invalid keys
     db.conn.close()
 
@@ -170,3 +170,8 @@ def test_users_get_all():
     db.conn = sqlite3.connect("whatAStupid.db")
     db.user_getall()
     db.conn.close()
+
+
+def test_generate_ics():
+    db = WebCafeDB("webcafe.db")
+    db.generate_ics(db_name=db.dbname, output_file="wow.ics", classroom_id=1, user_id=1, promo_id=1)

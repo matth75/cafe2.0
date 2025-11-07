@@ -11,6 +11,8 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import re
 
+DEVELOPPMENT_MODE = True
+
 # ------- JWT --------
 ACCESS_TOKEN_EXPIRES_MINUTES = 30
 ALGORITHM = "HS256"
@@ -44,7 +46,15 @@ else:
 oauth2scheme = OAuth2PasswordBearer(tokenUrl="token")   # url which it defaults to to lend JWT
 
 # create FastAPI app
-app = FastAPI()
+if DEVELOPPMENT_MODE:
+    app = FastAPI()
+
+else:
+    app = FastAPI(
+        docs_url=None,       # disables Swagger UI (/docs)
+        redoc_url=None,      # disables ReDoc (/redoc)
+        openapi_url=None     # disables OpenAPI JSON schema (/openapi.json)
+    )
 
 
 # enable CORS : 
@@ -224,8 +234,13 @@ async def set_use_teacher(current_user_login : Annotated[str, Depends(get_curren
     user_rights = db.check_superuser(current_user_login)    # seems ok
     db.conn.close()
     if user_rights == 1:    # user is superuser
+        db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
         res = db.set_Teacher(new_teacher_login)
-        return HTTPException(status_code=status.HTTP_200_OK, detail=f"User {new_teacher_login} succesfully updated rights to teacher")
+        db.conn.close()
+        if res == 1:
+            return HTTPException(status_code=status.HTTP_200_OK, detail=f"User {new_teacher_login} succesfully updated rights to teacher")
+        else:
+            return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"could not modify user {new_teacher_login}")
     elif user_rights == -1:
         raise HTTPException (status_code=status.HTTP_401_UNAUTHORIZED, detail=f"user {current_user_login} is not superuser")
     else:
@@ -287,3 +302,9 @@ async def read_root():
 @app.get("/ics/testICS")
 async def return_test_ics():
     return FileResponse("../ics/test.ics", filename="test.ics", media_type="text/ics")
+
+
+@app.get("/ics/generated_test")
+async def return_ics_generated():
+    return FileResponse("../wow.ics", filename="wow.ics", media_type="text/ics")
+
