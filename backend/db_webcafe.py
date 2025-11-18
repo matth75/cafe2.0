@@ -338,13 +338,13 @@ class WebCafeDB:
         return 1 # ics succesfully generated
     
 
-    def _fill_classroom(self):
-        rooms_locations = ["2Z28", "2Z34", "2Z42", "2Z48", "2Z63", "2Z68", "2Z71"]
-        capacity = 30
-        rooms_type = ["TP", "TP", "divers", "CM", "TP", "TP", "TP"]
-        c = self.conn.cursor()
-        for r in zip():
-
+    # def _fill_classroom(self):
+    #     rooms_locations = ["2Z28", "2Z34", "2Z42", "2Z48", "2Z63", "2Z68", "2Z71"]
+    #     capacity = 30
+    #     rooms_type = ["TP", "TP", "divers", "CM", "TP", "TP", "TP"]
+    #     c = self.conn.cursor()
+        
+        
 
 
 # db = WebCafeDB()
