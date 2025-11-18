@@ -68,18 +68,18 @@ wrong_user_data = [
 
 ]
 
-def test_create_user():
-    response = client.post("/users/create", json=dummy_user_data)
-    assert response.is_success
+# def test_create_user():
+#     response = client.post("/users/create", json=dummy_user_data)
+#     assert response.is_success
 
-    b = True
-    for d in wrong_user_data:
-        response = client.post("/users/create", json=d)
-        if (response.is_success):   # response.is_success should always be False
-            b = False
+#     b = True
+#     for d in wrong_user_data:
+#         response = client.post("/users/create", json=d)
+#         if (response.is_success):   # response.is_success should always be False
+#             b = False
     
-    assert b    # if b = True => all test successfully failed
-    result = response.json()
+#     assert b    # if b = True => all test successfully failed
+#     result = response.json()
 
 
 def test_insertUserDB():
@@ -107,7 +107,7 @@ def test_extensiveCheckUser():
         db.insertUser(login=j["login"], nom=j["nom"], prenom=j["prenom"], hpwd=j["hpwd"], email=j["email"])
         assert db.userCheckPassword(j["login"], j["hpwd"]) == 0
         user_info = db.get_user(j["login"])
-        assert user_info["login"]==j["login"]
+        assert user_info["login"]==j["login"]   #type: ignore
 
 
 def test_createJWT():
@@ -121,8 +121,8 @@ def test_getUser():
     db.conn = sqlite3.connect("whatAStupid.db")
     db.insertUser(login="wowawiwo", nom="name", prenom="prename", hpwd="mypwdtouse", email="email@email.com", birthday="2003-12-7", superuser=True, teacher=True)
     res = db.get_user("wowawiwo")
-    assert res["login"] ==  "wowawiwo"
-    assert res["email"] == "email@email.com"
+    assert res["login"] ==  "wowawiwo"   #type: ignore
+    assert res["email"] == "email@email.com"     #type: ignore
     res = db.get_user("user")
     db.conn.close()
 

@@ -10,6 +10,7 @@ from pwdlib import PasswordHash
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import re
+import os
 
 DEVELOPPMENT_MODE = True
 
@@ -19,10 +20,6 @@ ALGORITHM = "HS256"
 SECRET_KEY = "060d236eebec58d5c66cbab9b9961a7d38414536b5d1c7e3d0286eaa25ff765e"
 
 pwd_hash = PasswordHash.recommended()
-
-class Token(BaseModel):
-    access_token:str
-    token_type:str
 
 def create_access_token(data:dict, expires_delta:timedelta | None = None):
     to_encode = data.copy()
@@ -47,7 +44,7 @@ oauth2scheme = OAuth2PasswordBearer(tokenUrl="token")   # url which it defaults 
 
 # create FastAPI app
 if DEVELOPPMENT_MODE:
-    app = FastAPI()
+    app = FastAPI(root_path="/api")
 
 else:
     app = FastAPI(
@@ -117,11 +114,11 @@ async def create_user(user:User):
                         prenom=user.prenom,
                         hpwd=user.hpwd, 
                         email=user.email,
-                        promo_str=user.promo_id, 
-                        superuser=user.superuser,
-                        teacher=user.teacher,
+                        promo_str=user.promo_id,  # type: ignore
+                        superuser=user.superuser,  # type: ignore
+                        teacher=user.teacher,   # type: ignore
                         noteKfet=user.noteKfet,
-                        birthday=user.birthday)
+                        birthday=user.birthday)     # type: ignore
     
     db.conn.close()
     if res == -1:
@@ -307,4 +304,20 @@ async def return_test_ics():
 @app.get("/ics/generated_test")
 async def return_ics_generated():
     return FileResponse("../wow.ics", filename="wow.ics", media_type="text/ics")
+
+@app.get("/ics/get_all")
+async def return_all_events():
+    ics_name = "all.ics"
+    if os.path.exists(ics_name):
+        return FileResponse(ics_name, filename=ics_name, media_type="text/ics")
+    # else
+    res = db.generate_ics(db.dbname, ics_name)
+    if res == -2:
+        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="could not query database")
+    if res == -1:
+        return HTTPException(status_code=status.HTTP_412_PRECONDITION_FAILED, detail="no events found for the given filters")
+    if res == -3:
+        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="could not save ics.file")
+    return FileResponse(ics_name, filename=ics_name, media_type="text/ics")
+
 

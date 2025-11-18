@@ -1,6 +1,6 @@
 import sqlite3
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from icalendar import Calendar, Event
 
 # Handle promotions instances
@@ -31,16 +31,22 @@ class WebCafeDB:
 
             # create EVENTS table
             c.execute('CREATE TABLE IF NOT EXISTS events (event_id INTEGER PRIMARY KEY AUTOINCREMENT,' \
-            'start DATETIME, end DATETIME, matiere CHAR(30), type_cours CHAR(30),' \
+            'start DATETIME, end DATETIME, matiere CHAR(30), type_cours CHAR(30), infos_sup CHAR(50),' \
             ' classroom_id INT, user_id INT, promo_id INT)')
-            self.conn.close()
+
+            # create CLASSROOM table
+            c.execute('CREATE TABLE IF NOT EXISTS classroom (classroom_id INTEGER PRIMARY KEY AUTOINCREMENT,' \
+            'location CHAR(10), capacity INT, type CHAR(30))')
+
+            self.conn.commit()
+            c.close()            
             self.conn.close()
         except:
             raise ConnectionError(f"Unable to connect / create database : {dbname}")
         
 
     def insertUser(self, login:str, nom:str, prenom:str,
-                    hpwd:str, email:str, birthday="2000-01-01", promo_str=0, teacher=False, superuser=False, noteKfet=""):
+                    hpwd:str, email:str, birthday="2000-01-01", promo_str:str="pas de promo choisie !", teacher=False, superuser=False, noteKfet=""):
         
         """ Create new User with example syntax : 
         db.insertUser(table_name, "login", "email@email.com", "h_password", ...)"""
@@ -64,7 +70,7 @@ class WebCafeDB:
             c.close()
             return -2    # if False insertion failed
         
-    def deleteUser(self, table_name, login:str=None, id_key:int=None):
+    def deleteUser(self, table_name, login:str="", id_key:int=0):
         """ Deletes existing user"""
         c = self.conn.cursor()
         if (self._userExists(login=login)):
@@ -212,7 +218,7 @@ class WebCafeDB:
             return -1 # f"Unable to set user '{login}' to teacher"
 
 
-    def insertEvent(self, start, end, classroom_id:int=0, teacher_id:int=0, promo_id:int=0):
+    def insertEvent(self, start, end, matiere, type_cours, classroom_id:int=0, user_id:int=0, promo_id:int=0):
         """ Add an event to the SQL database. Assume start and end are of datetime.datetime format.
         Assuming for now that classroom ids are given, maybe change this parameter later... """
         # check if event already exists
@@ -220,8 +226,8 @@ class WebCafeDB:
             return -1   # event already exists
         c = self.conn.cursor()
         try:
-            insert_query = "INSERT INTO events (start, end, classroom_id, teacher_id, promo_id) VALUES (?, ?, ?, ?, ?)"
-            c.execute(insert_query, (start, end, classroom_id, teacher_id, promo_id))
+            insert_query = "INSERT INTO events (start, end, classroom_id, teacher_id, promo_id) VALUES (?, ?, ?, ?, ?, ?, ?)"
+            c.execute(insert_query, (start, end, matiere, type_cours, classroom_id, user_id, promo_id))
             self.conn.commit()
             c.close()
             return 1    # event correctly created
@@ -231,8 +237,10 @@ class WebCafeDB:
             return -2   # failed insertion
 
 
-    def modifyEvent(self):
-        pass
+    def deleteEvent(self):
+        self.conn = sqlite3.connect(self.dbname, check_same_thread=False)
+        cursor = self.conn.cursor()
+
 
     def _eventExists(self, start, promo_id):
         """Postulat : Deux évenements d'une même promo ne peuvent pas avoir le même instant de début de cours. """
@@ -243,8 +251,8 @@ class WebCafeDB:
         return event_info is not None   # True if event exists
         
     
-    def generate_ics(self, db_name: str, output_file: str, classroom_id: int = None,
-        user_id: int = None, promo_id: int = None):
+    def generate_ics(self, db_name: str, output_file: str, classroom_id: int = 0,
+        user_id: int = 0, promo_id: int = 0):
         """
         Generate an .ics calendar file from SQLite 'events' table,
         filtered by classroom_id, user_id, or promo_id.
@@ -261,13 +269,13 @@ class WebCafeDB:
         filters = []
         params = []
 
-        if classroom_id is not None:
+        if classroom_id > 0:
             filters.append("classroom_id = ?")
             params.append(classroom_id)
-        if user_id is not None:
+        if user_id > 0:
             filters.append("user_id = ?")
             params.append(user_id)
-        if promo_id is not None:
+        if promo_id > 0:
             filters.append("promo_id = ?")
             params.append(promo_id)
 
@@ -275,7 +283,7 @@ class WebCafeDB:
         if filters:
             where_clause = "WHERE " + " AND ".join(filters)
 
-        self.conn = sqlite3.connect(db_name)
+        self.conn = sqlite3.connect(db_name, check_same_thread=False)
         cursor = self.conn.cursor()
 
         query = f"""SELECT event_id, start, end, matiere, type_cours, classroom_id, user_id, promo_id FROM events {where_clause}"""
@@ -317,7 +325,7 @@ class WebCafeDB:
                 f"Classroom: {c_id}, User: {u_id}, Promo: {p_id}",
             )
             ical_event.add("location", f"Classroom {c_id}")
-            ical_event.add("dtstamp", datetime.utcnow())
+            ical_event.add("dtstamp", datetime.now)
 
             cal.add_component(ical_event)
 
@@ -328,6 +336,14 @@ class WebCafeDB:
             return -3 # could not write to file
 
         return 1 # ics succesfully generated
+    
+
+    def _fill_classroom(self):
+        rooms_locations = ["2Z28", "2Z34", "2Z42", "2Z48", "2Z63", "2Z68", "2Z71"]
+        capacity = 30
+        rooms_type = ["TP", "TP", "divers", "CM", "TP", "TP", "TP"]
+        c = self.conn.cursor()
+        for r in zip():
 
 
 
