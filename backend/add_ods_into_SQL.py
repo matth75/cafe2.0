@@ -3,7 +3,7 @@ import sqlite3
 import os
 
 # --- CONFIGURATION ---
-csv_file = "test_calendar_for_ics.xls"          # path to your .ods file
+csv_file = "all_events.xlsx"          # path to your .ods file
 table_name = "events"         # must already exist in the SQLite DB
 sqlite_db = "webcafe.db"    # your SQLite database file
 

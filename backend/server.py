@@ -11,6 +11,8 @@ from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import re
 import os
+import fcntl
+import json
 
 DEVELOPPMENT_MODE = True
 
@@ -96,12 +98,28 @@ class UserPassword(BaseModel):
     login: Annotated[str, Query(min_length=1, max_length=20)]
     hpwd: Annotated[str, Query(max_length=100)]
 
+
+default_datetime = datetime(2012, 12, 21, 00, 32)  # fin du monde !
+
 class Event(BaseModel):
-    pass
+    start: Annotated[datetime, Query(default=default_datetime)] 
+    end:  Annotated[datetime, Query(default=default_datetime)]
+    matiere: Annotated[str, Query(max_length=20, default="")] 
+    type_cours: Annotated[str, Query(max_length=20, default="")] 
+    infos_sup: Annotated[str, Query(max_length=50, default="")]
+    classroom_id: int | None = 0
+    user_id: int | None = 0
+    promo_id: int | None = 0
 
-class Calendar(BaseModel):
-    pass
-
+    @field_validator('*', mode='before')
+    def sanitize_strings(cls, v):
+        # reuse same sanitization rules as User: strip and reject SQL metachars
+        if isinstance(v, str):
+            v = v.strip()
+            if re.search(r"[;'\"\\]", v):
+                raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail=f"Invalid characters {v}")
+        return v
+    
 
 @app.post("/users/create", status_code=status.HTTP_201_CREATED)
 async def create_user(user:User):
@@ -308,16 +326,143 @@ async def return_ics_generated():
 @app.get("/ics/get_all")
 async def return_all_events():
     ics_name = "all.ics"
-    if os.path.exists(ics_name):
-        return FileResponse(ics_name, filename=ics_name, media_type="text/ics")
-    # else
-    res = db.generate_ics(db.dbname, ics_name)
+    meta_sidecar = ics_name + ".meta"
+
+    db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+    c = db.conn.cursor()
+    try:
+        row = c.execute("SELECT version FROM meta WHERE key='events'").fetchone()
+        db_version = row[0] if row else 0
+    finally:
+        c.close()
+        db.conn.close()
+
+    cached_version = None
+    if os.path.exists(meta_sidecar):
+        with open(meta_sidecar, 'r') as mf:
+            obj = json.load(mf)
+            cached_version = obj.get("version")
+
+    # check if file doesnt exists or as been modifed
+    if not os.path.exists(ics_name) or cached_version != db_version:
+        lock_path = ics_name + ".lock"  # avoid race conditions while accessing the file
+        with open(lock_path, "w") as lockf:
+            try:
+                fcntl.flock(lockf, fcntl.LOCK_EX)
+                res = db.generate_ics(db.dbname, ics_name)
+                if res == -2:
+                    return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="could not query database")
+                if res == -1:
+                    return HTTPException(status_code=status.HTTP_412_PRECONDITION_FAILED, detail="no events found for the given filters")
+                if res == -3:
+                    return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="could not save ics.file")
+                with open(meta_sidecar, "w") as mf:
+                    json.dump({"version": db_version, "generated_at": datetime.utcnow().isoformat()}, mf)
+            finally:
+                fcntl.flock(lockf, fcntl.LOCK_UN)
+
+    return FileResponse(ics_name, filename=ics_name, media_type="text/ics")
+                
+
+
+@app.get("/healthcheck")
+async def health_check():
+    return {"status":"ok"}
+
+
+@app.get("/version")
+async def get_version():
+    return {"version":"1.0.0"}
+
+@app.get("/test/event_filter")
+async def get_event_ids(event_criteria: Annotated[Event, Depends()]):
+    """
+    Asynchronously build a query from the provided Event criteria, fetch matching event IDs
+    from the database, and return the full event details for those IDs.
+    Behaviour
+    - Opens a SQLite connection and assigns it to db.conn.
+    - Constructs a query_dict containing only the criteria that differ from their default
+        values:
+            - start, end: compared against `default_datetime`
+            - matiere, type_cours, infos_sup: included if non-empty strings
+            - classroom_id, user_id, promo_id: included if not None and > 0
+    - Prints the constructed query_dict (side effect).
+    - Calls db._get_events_id(query_dict) to obtain a sequence of matching event IDs.
+        - If db._get_events_id returns -1, returns an HTTPException with status 500.
+        - Otherwise, calls db._get_events_on_ids(ids) to retrieve full event details.
+    - Closes the database connection before returning.
+    Args:
+            event_criteria (Event, provided via Depends()):
+                    An Event-like object used as a filter. Only fields that are set to values
+                    different from their defaults are used to build the query:
+                    - start, end (datetime-like): compared to `default_datetime`.
+                    - matiere, type_cours, infos_sup (str): included when not empty.
+                    - classroom_id, user_id, promo_id (int or None): included when not None and > 0.
+    Returns:
+            On success: the value returned by db._get_events_on_ids(ids) (presumably a list
+            or iterable of event detail objects/dicts).
+            On database query failure: an instance of fastapi.HTTPException with
+            status_code=500 and detail="query failed".
+    Side effects:
+            - Opens a SQLite connection with sqlite3.connect(db.dbname, check_same_thread=False)
+                and assigns it to db.conn.
+            - Prints the constructed query dictionary to stdout.
+            - Closes db.conn before returning.
+            - Calls two db helper functions: db._get_events_id and db._get_events_on_ids.
+    Notes:
+            - The function currently returns an HTTPException instance on error rather than
+                raising it; callers (e.g., FastAPI) should handle that pattern appropriately.
+            - The function relies on module-level symbols: db, default_datetime, sqlite3,
+                and status; ensure these are available in the module's scope.
+    """
+
+    db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+    query_dict = {}
+    # if criteria is provided, add it to the query dict
+    if event_criteria.start != default_datetime:
+        query_dict["start"] = event_criteria.start
+    if event_criteria.end != default_datetime:
+        query_dict["end"] = event_criteria.end
+    if event_criteria.matiere != "":
+        query_dict["matiere"] = event_criteria.matiere
+    if event_criteria.type_cours != "":
+        query_dict["type_cours"] = event_criteria.type_cours
+    if event_criteria.infos_sup != "":
+        query_dict["infos_sup"] = event_criteria.infos_sup
+    if event_criteria.classroom_id is not None and event_criteria.classroom_id > 0:
+        query_dict["classroom_id"] = event_criteria.classroom_id    
+    if event_criteria.user_id is not None and event_criteria.user_id > 0:
+        query_dict["user_id"] = event_criteria.user_id
+    if event_criteria.promo_id is not None and event_criteria.promo_id > 0:
+        query_dict["promo_id"] = event_criteria.promo_id
+
+
+    print(query_dict)
+        
+    ids = db._get_events_id(query_dict)
+    
+    if ids == -1:
+        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="query failed")
+    else:
+            res = db._get_events_on_ids(ids)    # returns events detail for all events  
+    db.conn.close()
+    return res
+
+
+@app.post("/ics/delete")
+async def delete_event(event_id_to_delete:int):
+    db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+    res = db.deleteEvent(event_id_to_delete)
+    db.conn.close()
     if res == -2:
-        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="could not query database")
+        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
     if res == -1:
-        return HTTPException(status_code=status.HTTP_412_PRECONDITION_FAILED, detail="no events found for the given filters")
+        return HTTPException(status_code=status.HTTP_412_PRECONDITION_FAILED, detail="event id not found")
     if res == -3:
         return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="could not save ics.file")
-    return FileResponse(ics_name, filename=ics_name, media_type="text/ics")
+    return HTTPException(status_code=status.HTTP_200_OK, detail=f"event {event_id_to_delete} succesfully deleted")
+
+
+
 
 

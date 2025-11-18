@@ -3,7 +3,7 @@ from backend.server import app, create_access_token  # your FastAPI app
 from backend.db_webcafe import WebCafeDB
 import pytest
 import sqlite3
-
+from datetime import datetime
 client = TestClient(app)
 
 def test_read_root():
@@ -175,3 +175,13 @@ def test_users_get_all():
 def test_generate_ics():
     db = WebCafeDB("webcafe.db")
     db.generate_ics(db_name=db.dbname, output_file="wow.ics", classroom_id=1, user_id=1, promo_id=1)
+
+
+def test_get_events_id():
+    db = WebCafeDB("webcafe.db")
+    db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+    res = db._get_events_id({"classroom_id":1, "user_id":1, "promo_id":1})
+    assert isinstance(res, list)
+    res = db._get_events_id({"start":datetime(2025,12,5,8,0)})
+    assert res != -1
+    db.conn.close()

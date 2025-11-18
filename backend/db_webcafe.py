@@ -38,7 +38,42 @@ class WebCafeDB:
             c.execute('CREATE TABLE IF NOT EXISTS classroom (classroom_id INTEGER PRIMARY KEY AUTOINCREMENT,' \
             'location CHAR(10), capacity INT, type CHAR(30))')
 
+                        # ensure meta table + triggers for cache invalidation
+            c.execute("""
+            CREATE TABLE IF NOT EXISTS meta (
+                key TEXT PRIMARY KEY,
+                version INTEGER DEFAULT 0,
+                last_modified TEXT DEFAULT (datetime('now'))
+            )""")
+            # ensure a single meta row for events
+            c.execute("INSERT OR IGNORE INTO meta (key, version) VALUES ('events', 0)")
+
+            # triggers to bump version on changes to events (and classrooms/users if needed)
+            c.execute("""
+            CREATE TRIGGER IF NOT EXISTS events_after_insert
+            AFTER INSERT ON events
+            BEGIN
+              UPDATE meta SET version = version + 1, last_modified = datetime('now') WHERE key='events';
+            END;""")
+
+            c.execute("""
+            CREATE TRIGGER IF NOT EXISTS events_after_update
+            AFTER UPDATE ON events
+            BEGIN
+              UPDATE meta SET version = version + 1, last_modified = datetime('now') WHERE key='events';
+            END;""")
+            c.execute("""
+            CREATE TRIGGER IF NOT EXISTS events_after_delete
+            AFTER DELETE ON events
+            BEGIN
+              UPDATE meta SET version = version + 1, last_modified = datetime('now') WHERE key='events';
+            END;""")
+
             self.conn.commit()
+
+            if c.execute("SELECT COUNT(*) FROM classroom").fetchone()[0] == 0:  # test if default values are needed
+                self._fill_classroom()  # populate classroom table with default values
+
             c.close()            
             self.conn.close()
         except:
@@ -218,7 +253,7 @@ class WebCafeDB:
             return -1 # f"Unable to set user '{login}' to teacher"
 
 
-    def insertEvent(self, start, end, matiere, type_cours, classroom_id:int=0, user_id:int=0, promo_id:int=0):
+    def insertEvent(self, start, end, matiere, type_cours, infos_sup:str="", classroom_id:int=0, user_id:int=0, promo_id:int=0):
         """ Add an event to the SQL database. Assume start and end are of datetime.datetime format.
         Assuming for now that classroom ids are given, maybe change this parameter later... """
         # check if event already exists
@@ -226,8 +261,8 @@ class WebCafeDB:
             return -1   # event already exists
         c = self.conn.cursor()
         try:
-            insert_query = "INSERT INTO events (start, end, classroom_id, teacher_id, promo_id) VALUES (?, ?, ?, ?, ?, ?, ?)"
-            c.execute(insert_query, (start, end, matiere, type_cours, classroom_id, user_id, promo_id))
+            insert_query = "INSERT INTO events (start, end, matiere, type_cours, infos_sup, classroom_id, teacher_id, promo_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            c.execute(insert_query, (start, end, matiere, type_cours, infos_sup, classroom_id, user_id, promo_id))
             self.conn.commit()
             c.close()
             return 1    # event correctly created
@@ -236,10 +271,144 @@ class WebCafeDB:
             c.close()
             return -2   # failed insertion
 
+    def _get_events_id(self, criteria: dict = {}, single: bool = False): # type: ignore
+        """
+        Retrieve event id(s) matching arbitrary criteria.
 
-    def deleteEvent(self):
-        self.conn = sqlite3.connect(self.dbname, check_same_thread=False)
-        cursor = self.conn.cursor()
+        Args:
+            criteria (dict): mapping column -> value. Value can be:
+                - scalar (equality)
+                - list/tuple (IN query)
+                - None (IS NULL)
+                - datetime.datetime for 'start'/'end' (will be normalized to DB string)
+            single (bool): if True, return a single id (first match) or -1 if none.
+                           if False, return a list of ids (possibly empty).
+
+        Returns:
+            int if single=True, else list[int] or -1 on no results.
+        """
+        allowed = { "start", "end", "matiere", "type_cours",
+            "infos_sup", "classroom_id", "user_id", "promo_id"
+        }
+
+        # helper to normalize datetime values to the DB string format
+        def _norm_dt(val):
+            # file-level import: from datetime import datetime
+            if isinstance(val, datetime):
+                # Use same format the rest of the code expects ("YYYY-MM-DD HH:MM")
+                return val.strftime("%Y-%m-%dT%H:%M")
+            return val
+
+        # Sanitize keys and build query
+        filters = []
+        params = []
+        for key, value in criteria.items():
+            if key not in allowed:
+                # ignore unknown columns
+                continue
+            if value is None:
+                filters.append(f"{key} IS NULL")
+            elif isinstance(value, (list, tuple, set)):
+                vals = list(value)
+                if not vals:
+                    # empty IN -> no results
+                    return -1 if single else []
+                # normalize any datetime items
+                vals = [_norm_dt(v) for v in vals]
+                placeholders = ", ".join(["?"] * len(vals))
+                filters.append(f"{key} IN ({placeholders})")
+                params.extend(vals)
+            else:
+                # normalize datetime scalar for start/end (or any datetime passed)
+                value = _norm_dt(value)
+                filters.append(f"{key} = ?")
+                params.append(value)
+
+        where_clause = ("WHERE " + " AND ".join(filters)) if filters else ""
+
+        c = self.conn.cursor()
+        try:
+            query = f"SELECT event_id FROM events {where_clause}"
+            rows = c.execute(query, params).fetchall()
+        finally:
+            c.close()
+
+        ids = [r[0] for r in rows]
+
+        if single:
+            return ids[0] if ids else -1
+
+        return ids if ids else -1
+    
+    def _get_events_on_ids(self, event_ids: list[int]):
+        """ Retrieve full event data (except event_id) for given event ids,
+            returning classroom.location instead of classroom_id, using one SQL query. """
+        if not event_ids:
+            return []
+
+        placeholders = ", ".join(["?"] * len(event_ids))
+        query = f"""
+            SELECT e.event_id, e.start, e.end, e.matiere, e.type_cours, e.infos_sup,
+                   c.location AS classroom_location, e.user_id, e.promo_id
+            FROM events e
+            LEFT JOIN classroom c ON e.classroom_id = c.classroom_id
+            WHERE e.event_id IN ({placeholders})
+        """
+
+        c = self.conn.cursor()
+        try:
+            rows = c.execute(query, event_ids).fetchall()
+        finally:
+            c.close()
+
+        events = []
+        for row in rows:
+            events.append({
+                "event_id":row[0],
+                "start": row[1],
+                "end": row[2],
+                "matiere": row[3],
+                "type_cours": row[4],
+                "infos_sup": row[5],
+                "classroom_location": row[6],
+                "user_id": row[7],
+                "promo_id": row[8]
+            })
+
+        return events
+
+    def deleteEvent(self, event_id: int) -> int:
+        """
+        Delete an event by id.
+
+        Returns:
+            1  : deleteds successfully
+           -1  : event_id not found 1
+           -2  : database error (query/commit failed)
+           -3  : invalid event_id
+        """
+        # basic validation
+
+        if event_id <= 0:
+            return -3
+
+        c = self.conn.cursor()
+        try:
+            c.execute("DELETE FROM events WHERE event_id = ?", (event_id,))
+            self.conn.commit()
+            if c.rowcount == 0: # checks the number of rows affected by deletion
+                return -1
+            return 1   # everything is good
+        except sqlite3.Error:
+            try:
+                self.conn.rollback()
+            except Exception:
+                pass
+            return -2
+        finally:
+            c.close()
+
+
 
 
     def _eventExists(self, start, promo_id):
@@ -270,13 +439,13 @@ class WebCafeDB:
         params = []
 
         if classroom_id > 0:
-            filters.append("classroom_id = ?")
+            filters.append("e.classroom_id = ?")
             params.append(classroom_id)
         if user_id > 0:
-            filters.append("user_id = ?")
+            filters.append("e.user_id = ?")
             params.append(user_id)
         if promo_id > 0:
-            filters.append("promo_id = ?")
+            filters.append("e.promo_id = ?")
             params.append(promo_id)
 
         where_clause = ""
@@ -286,7 +455,8 @@ class WebCafeDB:
         self.conn = sqlite3.connect(db_name, check_same_thread=False)
         cursor = self.conn.cursor()
 
-        query = f"""SELECT event_id, start, end, matiere, type_cours, classroom_id, user_id, promo_id FROM events {where_clause}"""
+        query = f"""SELECT e.event_id, e.start, e.end, e.matiere, e.type_cours, c.location AS classroom_location,
+             e.user_id, e.promo_id FROM events e LEFT JOIN classroom c ON e.classroom_id = c.classroom_id {where_clause}"""
         try:
             cursor.execute(query, params)
         except:
@@ -324,8 +494,8 @@ class WebCafeDB:
                 "description",
                 f"Classroom: {c_id}, User: {u_id}, Promo: {p_id}",
             )
-            ical_event.add("location", f"Classroom {c_id}")
-            ical_event.add("dtstamp", datetime.now)
+            ical_event.add("location", f"{c_id}")
+            ical_event.add("dtstamp", datetime.now(timezone.utc))
 
             cal.add_component(ical_event)
 
@@ -338,13 +508,19 @@ class WebCafeDB:
         return 1 # ics succesfully generated
     
 
-    # def _fill_classroom(self):
-    #     rooms_locations = ["2Z28", "2Z34", "2Z42", "2Z48", "2Z63", "2Z68", "2Z71"]
-    #     capacity = 30
-    #     rooms_type = ["TP", "TP", "divers", "CM", "TP", "TP", "TP"]
-    #     c = self.conn.cursor()
+    def _fill_classroom(self):
+        rooms_locations = ["2Z28", "2Z34", "2Z42", "2Z48", "2Z63", "2Z68", "2Z71"]
+        capacity = 30
+        rooms_type = ["TP", "TP", "divers", "CM", "TP", "TP", "TP"]
+        c = self.conn.cursor()
+        for loc, typ in zip(rooms_locations, rooms_type):
+            try:
+                c.execute("INSERT INTO classroom (location, capacity, type) VALUES (?, ?, ?)", (loc, capacity, typ))
+                self.conn.commit()
+            except:
+                pass
         
-        
+        c.close()
 
 
 # db = WebCafeDB()
