@@ -7,8 +7,9 @@
 <h2>CAFE</h2>
 </header>
 <ul>
-<li><RouterLink to="/">Maison</RouterLink></li>
-<li><RouterLink to="/calendar">Agenda</RouterLink></li>
+<li v-if="!isConnected"><RouterLink to="/login">Connexion</RouterLink></li>
+<li v-if="isConnected"><RouterLink to="/user-detail">Profil</RouterLink></li>
+<li v-if="isConnected"><RouterLink to="/calendar">Agenda</RouterLink></li>
 <li><RouterLink to="/kawa">Machine à Café</RouterLink></li>
 <li><RouterLink to="/contact">Contact</RouterLink></li>
 <li><RouterLink to="/stage">Stage</RouterLink></li>
@@ -53,6 +54,15 @@ Tazz - Matthew - Pilou
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 
 const isSuperuser = ref(false)
+const isConnected = ref(false)
+
+function syncConnectionStatus() {
+  if (typeof window === 'undefined') {
+    isConnected.value = false
+    return
+  }
+  isConnected.value = localStorage.getItem('cafe_connected') === 'true'
+}
 
 function syncSuperuserFlag() {
   if (typeof window === 'undefined') {

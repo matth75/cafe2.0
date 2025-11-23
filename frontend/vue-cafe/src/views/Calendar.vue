@@ -2,42 +2,34 @@
   <section class="content calendar-page">
     <header class="calendar-header">
       <h1>Agenda</h1>
-      <div
-        v-if="showCalendarControls || canRefreshCalendar"
-        class="calendar-controls"
-      >
+      <div v-if="showCalendarControls || canRefreshCalendar" class="calendar-controls">
         <template v-if="showCalendarControls">
           <label for="calendar-select">Calendrier</label>
           <select id="calendar-select" v-model="selectedCalendarId">
-            <option
-              v-for="source in calendars"
-              :key="source.id"
-              :value="source.id"
-            >
+            <option v-for="source in calendars" :key="source.id" :value="source.id">
               {{ source.label }}
             </option>
           </select>
         </template>
-        <button
-          v-if="canRefreshCalendar"
-          type="button"
-          class="button small"
-          @click="refreshCurrent"
-          :disabled="isLoading"
-        >
+        <button v-if="canRefreshCalendar" type="button" class="button small" @click="refreshCurrent"
+          :disabled="isLoading">
           Rafraîchir
         </button>
       </div>
     </header>
 
+    <add-to-calendar-button name="Calendrier SIEN" description="ajouter au calendrier" startDate="2025-11-06"
+      startTime="10:15" endTime="17:45" timeZone="Europe/Berlin" location="World Wide Web"
+      icsFile="https://cafe.zpq.ens-paris-saclay.fr/ics/testICS" subscribe iCalFileName="M1 E3A"
+      options="'Apple','Google','iCal','Outlook.com','MicrosoftTeams','Yahoo','Microsoft365'"
+      language="fr"></add-to-calendar-button>
+
     <p v-if="error" class="calendar-status error">{{ error }}</p>
     <p v-else-if="isLoading" class="calendar-status loading">Chargement…</p>
 
-    <FullCalendar
-      v-if="currentCalendar"
-      class="calendar-widget"
-      :options="calendarOptions"
-    />
+    <FullCalendar v-if="currentCalendar" class="calendar-widget" :options="calendarOptions" />
+
+
 
     <p v-else class="calendar-status empty">
       Aucun calendrier disponible pour le moment.
@@ -47,6 +39,7 @@
 
 <script setup>
 import { computed, onMounted, ref, watch } from 'vue'
+import 'add-to-calendar-button';
 import FullCalendar from '@fullcalendar/vue3'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'

@@ -27,6 +27,7 @@
     "@fullcalendar/list": "^6.1.15",
     "@fullcalendar/timegrid": "^6.1.15",
     "@fullcalendar/vue3": "^6.1.15",
+    "add-to-calendar-button": "^2.13.3",
     "axios": "^1.12.2",
     "nodemon": "^3.1.10",
     "pinia": "^3.0.3",
