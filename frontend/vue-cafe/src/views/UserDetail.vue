@@ -15,9 +15,7 @@
 
     <div v-else-if="user" class="profile-card">
       <header class="profile-header">
-        <div class="avatar" aria-hidden="true">
-          {{user.prenom.charAt(0)}}{{user.nom.charAt(0)}}
-        </div>
+        <UserAvatar :first-name="user.prenom" :last-name="user.nom" />
         <div class="profile-heading">
           <div class="profile-identity">
             <h2>{{ user.prenom }} {{ user.nom }}</h2>
@@ -51,7 +49,7 @@
               <dd v-else>Standard</dd>
             </div>
             <div class="detail">
-              <dt>Calendrier favori</dt>
+              <dt>Promo</dt>
               <dd>
                 <button class="link-button" type="button" @click="openCalendarModal">
                   {{ user.promo_id ? user.promo_id : 'Sélectionner un calendrier' }}
@@ -82,7 +80,7 @@
         class="modal-backdrop"
         role="dialog"
         aria-modal="true"
-        aria-label="Sélection du calendrier favori"
+        aria-label="Sélection de la Promo "
         @click.self="closeCalendarModal"
       >
         <div class="modal-panel">
@@ -107,6 +105,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { getUsersInfo, mapApiUser } from '@/api'
 import type { UserProfile } from '@/api'
 import SubCalendar from '@/components/SubCalendar.vue'
+import UserAvatar from '@/components/UserAvatar.vue'
 
 
 
@@ -139,7 +138,11 @@ async function fetchProfile() {
   try {  
     const rawUser = await getUsersInfo(token.value)
     user.value = mapApiUser(rawUser)
-    
+    localStorage.setItem(
+      'cafe_superuser',
+      user.value?.superuser ? 'true' : 'false',
+    )
+
 
   } catch (err: unknown) {
     if (
@@ -150,6 +153,7 @@ async function fetchProfile() {
     ) {
       error.value = 'Session expirée. Merci de vous reconnecter.'
       localStorage.removeItem('cafe_token')
+      localStorage.removeItem('cafe_superuser')
       router.push({ name: 'login' })
     } else {
       error.value = "Impossible de récupérer vos informations pour le moment."
@@ -165,6 +169,7 @@ function refresh() {
 
 function logout() {
   localStorage.removeItem('cafe_token')
+  localStorage.removeItem('cafe_superuser')
   router.push({ name: 'login' })
 }
 
@@ -221,17 +226,6 @@ onMounted(() => {
   gap: 1.25rem;
 }
 
-.avatar {
-  width: 64px;
-  height: 64px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #6c5ce7, #0984e3);
-  color: #fff;
-  display: grid;
-  place-items: center;
-  font-size: 1.5rem;
-  font-weight: 700;
-}
 
 .profile-heading {
   display: grid;
@@ -344,10 +338,9 @@ onMounted(() => {
 .link-button {
   background: none;
   border: none;
-  padding: 0;
   color: #1f7aec;
   font-weight: 600;
-  cursor: pointer;
+  cursor:grab; 
   text-decoration: underline;
 }
 

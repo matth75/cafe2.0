@@ -18,16 +18,23 @@ button { padding: 6px 10px; }
 
 <template>
   <div id="wrapper" class="is-preload">
+
     <div id="main">
       <div class="inner">
-      <button class="btn-toggle" @click="toggleSideBar">
-      {{ sideBarOpen ? 'Nuit' : 'Jour' }}
-      </button>
       <AppHeader />
       <RouterView />
       </div>
     </div>
-    <div id="sidebar" v-show="sideBarOpen">
+    <div id="sidebar" :class="{ inactive: !sideBarOpen }">
+      <a
+        href="#sidebar"
+        class="toggle"
+        role="button"
+        @click.prevent="toggleSideBar"
+        :aria-expanded="sideBarOpen.toString()"
+      >
+        Menu
+      </a>
       <Sidebar />
     </div>
   </div>

@@ -26,7 +26,7 @@ position: absolute; top: .35rem; right: .5rem;
 }
 .calendar .day.today {
 outline: 2px solid var(--accent, #6cc091);
-background: rgba(108,192,145,.08);
+background: rgb(255, 255, 255);
 }
 .calendar .event-dot {
 display: block; font-size: .8rem; margin-top: 1.2rem;

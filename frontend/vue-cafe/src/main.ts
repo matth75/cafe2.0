@@ -7,6 +7,7 @@ import router from '@/router/index.ts'
 import '@/assets/css/calendar.css'
 import '@/assets/css/main.css'
 import '@/assets/css/main.css'
+import '@fortawesome/fontawesome-free/css/all.min.css'
 import '@/assets/css/fontawesome-all.min.css'
 
 

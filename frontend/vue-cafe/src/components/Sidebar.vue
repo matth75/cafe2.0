@@ -12,6 +12,7 @@
 <li><RouterLink to="/kawa">Machine à Café</RouterLink></li>
 <li><RouterLink to="/contact">Contact</RouterLink></li>
 <li><RouterLink to="/stage">Stage</RouterLink></li>
+<li v-if="isSuperuser"><RouterLink to="/superuser">Espace Superuser</RouterLink></li>
 </ul>
 </nav>
 
@@ -48,6 +49,39 @@ Tazz - Matthew - Pilou
 </template>
 
 
-<script setup>
-// Rien de spécial ici pour l'instant
+<script setup lang="ts">
+import { onBeforeUnmount, onMounted, ref } from 'vue'
+
+const isSuperuser = ref(false)
+
+function syncSuperuserFlag() {
+  if (typeof window === 'undefined') {
+    isSuperuser.value = false
+    return
+  }
+  isSuperuser.value = localStorage.getItem('cafe_superuser') === 'true'
+}
+
+function handleStorage(event: StorageEvent) {
+  if (event.key === 'cafe_superuser') {
+    isSuperuser.value = event.newValue === 'true'
+  }
+}
+
+function handleVisibility() {
+  if (document.visibilityState === 'visible') {
+    syncSuperuserFlag()
+  }
+}
+
+onMounted(() => {
+  syncSuperuserFlag()
+  window.addEventListener('storage', handleStorage)
+  document.addEventListener('visibilitychange', handleVisibility)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('storage', handleStorage)
+  document.removeEventListener('visibilitychange', handleVisibility)
+})
 </script>

@@ -34,7 +34,7 @@ export function calendarIcsUrl(slug: string) {
   return `${API_BASE.replace(/\/api\/v?\d*$/, "")}/calendar/${slug}.ics`;
 }
 
-/* ---- API functions (exemples) ---- */
+/* ---- API functions ---- */
 
 // ----- Register ---- 
 export interface UserProfile {
@@ -49,7 +49,6 @@ export interface UserProfile {
   teacher: boolean
   noteKfet: string
 }
-
 export async function registerUser(payload: UserProfile) {
   const { data } = await client.post("/users/create", payload);
   return data;
@@ -96,6 +95,15 @@ export async function getUserCalendars(token?: string) {
   return data;
 }
 
+// GET users list (admin)
+export async function getUsersList(token:string){
+  const headers = token
+    ? { Authorization: `Bearer ${token}` }
+    : undefined;
+
+  const { data } = await client.get("/users/all", { headers });
+  return data;
+}
 
 // ----- Modify User INFO ----
 // modify API db user with frontend user
