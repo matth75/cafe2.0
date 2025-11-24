@@ -120,6 +120,24 @@ class Event(BaseModel):
                 raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail=f"Invalid characters {v}")
         return v
     
+class NewEvent(BaseModel):
+    start: datetime 
+    end:  datetime
+    matiere: Annotated[str, Query(min_length=2, max_length=20)] 
+    type_cours: Annotated[str, Query(min_length=2, max_length=20)] 
+    infos_sup: Annotated[str, Query(min_length=2, max_length=50, default="")]
+    classroom_str: str
+    user_id: int | None = 0
+    promo_id: int | None = 0
+
+    @field_validator('*', mode='before')
+    def sanitize_strings(cls, v):
+        # reuse same sanitization rules as User: strip and reject SQL metachars
+        if isinstance(v, str):
+            v = v.strip()
+            if re.search(r"[;'\"\\]", v):
+                raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail=f"Invalid characters {v}")
+        return v
 
 @app.post("/users/create", status_code=status.HTTP_201_CREATED)
 async def create_user(user:User):
@@ -464,5 +482,30 @@ async def delete_event(event_id_to_delete:int):
 
 
 
+@app.post("/ics/insert")
+async def insert_event(e: Annotated[NewEvent, Depends()]):
+    """ Adds an event to database. """
+    db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+
+    classroom_id = db.get_classroom_id(e.classroom_str)
+    if classroom_id < 0:
+        return HTTPException(status_code=status.HTTP_418_IM_A_TEAPOT, detail=f"no classroom in database by the name {e.classroom_str}")
+    # convert classroom to id
+    res = db.insertEvent(start=e.start,
+                         end =e.end,
+                         matiere=e.matiere,
+                         type_cours=e.type_cours,
+                         infos_sup=e.infos_sup,
+                         classroom_id=classroom_id,   #type: ignore
+                         user_id=e.user_id, #type: ignore
+                         promo_id=e.promo_id    #type: ignore
+                         )
+    db.conn.close()
+    if res == -1:
+        return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"event starting at {e.start} for promotion {e.promo_id} already exists")
+    if res == -2:
+        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
+    
+    return HTTPException(status_code=status.HTTP_200_OK, detail=f"event succesfully added")
 
 

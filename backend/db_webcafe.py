@@ -257,13 +257,24 @@ class WebCafeDB:
     def insertEvent(self, start, end, matiere, type_cours, infos_sup:str="", classroom_id:int=0, user_id:int=0, promo_id:int=0):
         """ Add an event to the SQL database. Assume start and end are of datetime.datetime format.
         Assuming for now that classroom ids are given, maybe change this parameter later... """
+
+        def _norm_dt(val):
+            # file-level import: from datetime import datetime
+            if isinstance(val, datetime):
+                return val.strftime("%Y-%m-%dT%H:%M")
+            return val
+        
+        norm_start = _norm_dt(start)
+        norm_end = _norm_dt(end)
+
         # check if event already exists
-        if (self._eventExists(start=start, promo_id=promo_id)):
+        if (self._eventExists(start=norm_start, promo_id=promo_id)):
             return -1   # event already exists
         c = self.conn.cursor()
+
         try:
-            insert_query = "INSERT INTO events (start, end, matiere, type_cours, infos_sup, classroom_id, teacher_id, promo_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-            c.execute(insert_query, (start, end, matiere, type_cours, infos_sup, classroom_id, user_id, promo_id))
+            insert_query = "INSERT INTO events (start, end, matiere, type_cours, infos_sup, classroom_id, user_id, promo_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            c.execute(insert_query, (norm_start, norm_end, matiere, type_cours, infos_sup, classroom_id, user_id, promo_id))
             self.conn.commit()
             c.close()
             return 1    # event correctly created
@@ -341,6 +352,26 @@ class WebCafeDB:
 
         return ids if ids else -1
     
+        # ...existing code...
+    def get_classroom_id(self, name: str) -> int:
+        """
+        Return the classroom_id for a given classroom location/name.
+        Raises ValueError if the classroom name is not found or name is empty.
+        """
+        if not name or not isinstance(name, str):
+            return -1   # redundant type check
+
+        c = self.conn.cursor()
+        try:
+            row = c.execute("SELECT classroom_id FROM classroom WHERE location = ?", (name,)).fetchone()
+        finally:
+            c.close()
+
+        if row is None:
+            return -2   # no classroom match
+        return int(row[0])
+    # ...existing code...
+
     def _get_events_on_ids(self, event_ids: list[int]):
         """ Retrieve full event data (except event_id) for given event ids,
             returning classroom.location instead of classroom_id, using one SQL query. """
@@ -415,10 +446,10 @@ class WebCafeDB:
     def _eventExists(self, start, promo_id):
         """Postulat : Deux évenements d'une même promo ne peuvent pas avoir le même instant de début de cours. """
         c = self.conn.cursor()
-        event_info = c.execute("SELECT * FROM events WHERE start = ? AND promo_id = ?", (start, promo_id)).fetchone()
+        event_info = c.execute("SELECT COUNT(*) FROM events WHERE start = ? AND promo_id = ?", (start, promo_id)).fetchone()[0]
         c.close()
 
-        return event_info is not None   # True if event exists
+        return event_info > 0  # True if event exists
         
     
     def generate_ics(self, db_name: str, output_file: str, classroom_id: int = 0,
@@ -490,7 +521,7 @@ class WebCafeDB:
             end_dt = parse_dt(end)
 
             ical_event = Event()
-            ical_event.add("uid", f"{event_id}@school-calendar")
+            ical_event.add("uid", f"{event_id}@webcafe")
             ical_event.add("summary", f"{matiere} - {type_cours}")
             ical_event.add("dtstart", start_dt)
             ical_event.add("dtend", end_dt)
@@ -523,7 +554,6 @@ class WebCafeDB:
                 self.conn.commit()
             except:
                 pass
-        
         c.close()
 
 
