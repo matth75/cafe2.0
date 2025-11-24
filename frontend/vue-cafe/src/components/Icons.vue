@@ -1,5 +1,4 @@
 <template>
-  <!-- Remplace ce contenu par tes vraies icônes -->
   <li v-if="currentUser" class="user-icon">
     <RouterLink
       :to="profileLink"
@@ -20,6 +19,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import UserAvatar from '@/components/UserAvatar.vue'
 import { getUsersInfo, mapApiUser } from '@/api'
 import type { UserProfile } from '@/api'
+import { AUTH_EVENT } from '@/utils/authEvents'
 
 const currentUser = ref<UserProfile | null>(null)
 let lastToken: string | null = null
@@ -81,15 +81,21 @@ function handleVisibility() {
   }
 }
 
+function handleAuthEvent() {
+  loadProfile(true)
+}
+
 onMounted(() => {
   loadProfile()
   window.addEventListener('storage', handleStorage)
   document.addEventListener('visibilitychange', handleVisibility)
+  window.addEventListener(AUTH_EVENT, handleAuthEvent as EventListener)
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('storage', handleStorage)
   document.removeEventListener('visibilitychange', handleVisibility)
+  window.removeEventListener(AUTH_EVENT, handleAuthEvent as EventListener)
 })
 
 const profileLink = computed(() => {

@@ -60,6 +60,7 @@
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { loginUser, getUsersInfo, mapApiUser } from '@/api'
+import { emitAuthEvent } from '@/utils/authEvents'
 
 interface LoginFormState {
   login: string
@@ -116,6 +117,10 @@ async function handleSubmit() {
       'cafe_superuser',
       normalizedProfile?.superuser ? 'true' : 'false',
     )
+    emitAuthEvent({
+      token,
+      superuser: normalizedProfile?.superuser ?? false,
+    })
     const identifier = profile?.login ?? 'profil'
     await router.push({ name: 'user-detail', params: { id: identifier } })
 
@@ -126,6 +131,7 @@ async function handleSubmit() {
       message: extractErrorMessage(err),
     }
     localStorage.removeItem('cafe_superuser')
+    emitAuthEvent({ token: null, superuser: false })
   } finally {
     isSubmitting.value = false
   }

@@ -106,6 +106,7 @@ import { getUsersInfo, mapApiUser } from '@/api'
 import type { UserProfile } from '@/api'
 import SubCalendar from '@/components/SubCalendar.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
+import { emitAuthEvent } from '@/utils/authEvents'
 
 
 
@@ -142,6 +143,10 @@ async function fetchProfile() {
       'cafe_superuser',
       user.value?.superuser ? 'true' : 'false',
     )
+    emitAuthEvent({
+      token: token.value,
+      superuser: !!user.value?.superuser,
+    })
 
 
   } catch (err: unknown) {
@@ -154,6 +159,7 @@ async function fetchProfile() {
       error.value = 'Session expirée. Merci de vous reconnecter.'
       localStorage.removeItem('cafe_token')
       localStorage.removeItem('cafe_superuser')
+      emitAuthEvent({ token: null, superuser: false })
       router.push({ name: 'login' })
     } else {
       error.value = "Impossible de récupérer vos informations pour le moment."
@@ -170,6 +176,7 @@ function refresh() {
 function logout() {
   localStorage.removeItem('cafe_token')
   localStorage.removeItem('cafe_superuser')
+  emitAuthEvent({ token: null, superuser: false })
   router.push({ name: 'login' })
 }
 
