@@ -16,11 +16,11 @@ def convertPromoStrToInt(promo_str: str) -> int:
     finally:
         conn.close()
 
-def load_inverse_promos() -> dict:
+def load_inverse_promos():
     conn = sqlite3.connect(WebCafeDB.dbname)
     try:
-        rows = conn.execute("SELECT promo_id, promo_name FROM promo").fetchall()
-        return {int(r[0]): r[1] for r in rows}
+        rows = conn.execute("SELECT promo_name FROM promo").fetchall()
+        return [r[0] for r in rows]
     finally:
         conn.close()
         
