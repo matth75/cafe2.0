@@ -33,6 +33,18 @@ const router = createRouter({
     meta: { requiresSuperuser: true },
   },
   {
+    path: '/su_people',
+    name: 'su_people',
+    component: () => import('@/views/Su_people.vue'),
+    meta: { requiresSuperuser: true },
+  },
+  {
+    path: '/su_cal',
+    name: 'su_cal',
+    component: () => import('@/views/Su_cal.vue'),
+    meta: { requiresSuperuser: true },
+  },
+  {
     path: '/stage',
     name: 'stage',
     component: () => import('@/views/Stage.vue'),

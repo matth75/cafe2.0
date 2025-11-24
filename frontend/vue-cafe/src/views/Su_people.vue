@@ -6,10 +6,45 @@
     </header>
 
     <p v-if="error" class="status-message">{{ error }}</p>
-    <div style="text-align: center;">
-      <RouterLink class="button Button_principal" to="/su_people">Gérer les utilisateurs</RouterLink>
-      &nbsp; &nbsp; &nbsp;
-      <RouterLink class="button Button_principal" to="/su_cal">Gérer les calendriers</RouterLink>
+
+    <div class="filter-switch" role="tablist" aria-label="Filtrer les utilisateurs">
+      <button
+        v-for="option in filterOptions"
+        :key="option.key"
+        type="button"
+        class="filter-button"
+        :class="{ active: option.key === activeFilter }"
+        @click="activeFilter = option.key"
+      >
+        {{ option.label }}
+      </button>
+    </div>
+
+    <div class="cards-grid">
+      <article
+        v-for="section in visibleSections"
+        :key="section.key"
+        class="card"
+      >
+        <h2>{{ section.title }}</h2>
+
+        <p v-if="loading" class="muted">Chargement en cours…</p>
+        <p v-else-if="error" class="error-text">{{ error }}</p>
+        <p v-else-if="section.users.length === 0" class="muted">{{ section.emptyLabel }}</p>
+
+        <ul v-else class="user-list">
+          <li
+            v-for="(user, index) in section.users"
+            :key="user.login ?? user.email ?? user.mail ?? `${section.key}-${index}`"
+            class="user-item"
+          >
+            <span class="user-name">
+              {{ resolveName(user) }} <a :href="'mailto:' + resolveEmail(user)">{{ resolveEmail(user) }}</a> Droit : {{ resolveDroit(user) }}
+              
+            </span>
+          </li>
+        </ul>
+      </article>
     </div>
 
   </section>

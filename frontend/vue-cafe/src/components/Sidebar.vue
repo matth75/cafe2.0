@@ -7,7 +7,13 @@
 <h2>CAFE</h2>
 </header>
 <ul>
-<li><RouterLink :to="isConnected ? '/user-detail' : '/login'">{{ isConnected ? 'Profil' : 'Connexion' }}</RouterLink></li>
+<li>
+  <RouterLink
+    :to="isConnected ? { name: 'user-detail', params: { id: 'profil' } } : { name: 'login' }"
+  >
+    {{ isConnected ? 'Profil' : 'Connexion' }}
+  </RouterLink>
+</li>
 
 <li v-if="isConnected"><RouterLink to="/calendar">Agenda</RouterLink></li>
 <li><RouterLink to="/kawa">Machine à Café</RouterLink></li>
@@ -51,7 +57,7 @@ Tazz - Matthew - Pilou
 
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { AUTH_EVENT } from '@/utils/authEvents'
 
 const isSuperuser = ref(false)
@@ -61,6 +67,7 @@ const isConnected = ref(false)
 function syncConnectionStatus() {
   isConnected.value = typeof window !== 'undefined' && typeof localStorage.getItem('cafe_token') === 'string'
 }
+
 
 
 function syncSuperuserFlag() {
