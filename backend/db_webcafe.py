@@ -161,16 +161,12 @@ class WebCafeDB:
     def get_user(self, login:str):
         try:
             c = self.conn.cursor()
-            user_info = c.execute("SELECT login, nom, prenom, email, birthday, promo_id, teacher, superuser, noteKfet  FROM users WHERE login = ?", (login,)).fetchone()
+            user_info = c.execute(
+                "SELECT u.login, u.nom, u.prenom, u.email, u.birthday, COALESCE(p.promo_name, ''), u.teacher, u.superuser, u.noteKfet "
+                "FROM users u LEFT JOIN promo p ON u.promo_id = p.promo_id WHERE u.login = ?",
+                (login,),
+            ).fetchone()
             c.close()
-            
-            # convert promo int number to string
-            promo_nb = int(user_info[5])
-            inverse_promos = load_inverse_promos()
-            if promo_nb in inverse_promos.keys():
-                promo_str = inverse_promos[promo_nb]
-            else:
-                promo_str = "promotion not known ?"
             
             inttobool = {0:False, 1:True}
             try:
@@ -183,17 +179,20 @@ class WebCafeDB:
                 superuser_bool = inttobool[user_info[7]]
             except:
                 superuser_bool = False
-
+            promo_name = user_info[5] if user_info[5] is not None else ""
             # return JSON like data, without password
             return {"login":str(user_info[0]), "nom":str(user_info[1]), "prenom":str(user_info[2]),
-                    "email":str(user_info[3]), "birthday":str(user_info[4]), "promo_id":promo_str,
+                    "email":str(user_info[3]), "birthday":str(user_info[4]), "promo_id":promo_name,
                       "teacher": teacher_bool, "superuser":superuser_bool, "noteKfet":str(user_info[8])}
         except:
             return "db offline or login doesnt exist"
         
     def user_getall(self):
         c = self.conn.cursor()
-        users = c.execute("SELECT login, email, teacher, superuser, nom, prenom, promo_id FROM users").fetchall()
+        users = c.execute(
+            "SELECT u.login, u.email, u.teacher, u.superuser, u.nom, u.prenom, COALESCE(p.promo_name, '') "
+            "FROM users u LEFT JOIN promo p ON u.promo_id = p.promo_id"
+        ).fetchall()
         if users is None:
             return -1
         else:
@@ -211,15 +210,6 @@ class WebCafeDB:
                             value = True
                         elif value == 0:
                             value = False
-                    # convert promo_id
-                    if field == "promo_id":
-                        # convert promo int number to string
-                        promo_nb = int(value)
-                        inverse_promos = load_inverse_promos()
-                        if promo_nb in inverse_promos.keys():
-                            value = inverse_promos[promo_nb]
-                        else:
-                            value = "promotion not known ?"
                     inner_json[field] = value   
                 result[key] = inner_json
             

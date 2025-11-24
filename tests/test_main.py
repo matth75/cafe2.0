@@ -191,6 +191,6 @@ def test_insert_event():
     db = WebCafeDB("webcafe.db")
     db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
     res = db.insertEvent(start="2025-08-12T08:30", end="2025-08-12T09:30", matiere="info", type_cours="CM", infos_sup="", 
-                         classroom_id=4, user_id=1, promo_id=1)
+                         classroom_id=5, user_id=1, promo_id=2)
     assert res == 1
     db.conn.close()
