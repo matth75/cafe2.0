@@ -4,17 +4,26 @@ from datetime import datetime, timezone, timedelta
 from icalendar import Calendar, Event
 from zoneinfo import ZoneInfo
 # Handle promotions instances
-dict_promos = {"pas de promo choisie !":0, "Intranet":1, "M1 E3A":2, "PSEE":3, "Saphire":4}
-inverse_promos = {v: k for k, v in dict_promos.items()}
 PARIS = ZoneInfo("Europe/Paris")
 
-
-def convertPromoStrToInt(p_str:str):
-    if p_str not in dict_promos.keys():
+def convertPromoStrToInt(promo_str: str) -> int:
+    if not promo_str:
         return 0
-    else:
-        return dict_promos[p_str]
+    conn = sqlite3.connect(WebCafeDB.dbname)
+    try:
+        row = conn.execute("SELECT promo_id FROM promo WHERE promo_name = ?", (promo_str,)).fetchone()
+        return int(row[0]) if row else 0
+    finally:
+        conn.close()
 
+def load_inverse_promos() -> dict:
+    conn = sqlite3.connect(WebCafeDB.dbname)
+    try:
+        rows = conn.execute("SELECT promo_id, promo_name FROM promo").fetchall()
+        return {int(r[0]): r[1] for r in rows}
+    finally:
+        conn.close()
+        
 class WebCafeDB:
     dbname = "webcafe.db"
     users_table = "users"
@@ -39,7 +48,11 @@ class WebCafeDB:
             c.execute('CREATE TABLE IF NOT EXISTS classroom (classroom_id INTEGER PRIMARY KEY AUTOINCREMENT,' \
             'location CHAR(10), capacity INT, type CHAR(30))')
 
-                        # ensure meta table + triggers for cache invalidation
+            # create PROMO table
+            c.execute('CREATE TABLE IF NOT EXISTS promo (promo_id INTEGER PRIMARY KEY AUTOINCREMENT,' \
+            'promo_name TEXT UNIQUE)')
+
+             # ensure meta table + triggers for cache invalidation
             c.execute("""
             CREATE TABLE IF NOT EXISTS meta (
                 key TEXT PRIMARY KEY,
@@ -75,6 +88,8 @@ class WebCafeDB:
             if c.execute("SELECT COUNT(*) FROM classroom").fetchone()[0] == 0:  # test if default values are needed
                 self._fill_classroom()  # populate classroom table with default values
 
+            if c.execute("SELECT COUNT(*) FROM promo").fetchone()[0] == 0:
+                self._fill_promo()
             c.close()            
             self.conn.close()
         except:
@@ -151,6 +166,7 @@ class WebCafeDB:
             
             # convert promo int number to string
             promo_nb = int(user_info[5])
+            inverse_promos = load_inverse_promos()
             if promo_nb in inverse_promos.keys():
                 promo_str = inverse_promos[promo_nb]
             else:
@@ -199,6 +215,7 @@ class WebCafeDB:
                     if field == "promo_id":
                         # convert promo int number to string
                         promo_nb = int(value)
+                        inverse_promos = load_inverse_promos()
                         if promo_nb in inverse_promos.keys():
                             value = inverse_promos[promo_nb]
                         else:
@@ -543,6 +560,18 @@ class WebCafeDB:
         return 1 # ics succesfully generated
     
 
+    def _fill_promo(self):
+        promotions = ["Intranet", "M1 E3A", "PSEE", "Saphire"]  
+        c = self.conn.cursor()
+        for p in promotions:
+            try:
+                c.execute("INSERT INTO promo (promo_name) VALUES (?)", (p,))
+            except:
+                pass
+        self.conn.commit()
+        c.close()
+        
+
     def _fill_classroom(self):
         rooms_locations = ["2Z28", "2Z34", "2Z42", "2Z48", "2Z63", "2Z68", "2Z71"]
         capacity = 30
@@ -550,7 +579,7 @@ class WebCafeDB:
         c = self.conn.cursor()
         for loc, typ in zip(rooms_locations, rooms_type):
             try:
-                c.execute("INSERT INTO classroom (location, capacity, type) VALUES (?, ?, ?)", (loc, capacity, typ))
+                c.execute("INSERT OR IGNORE INTO classroom (location, capacity, type) VALUES (?, ?, ?)", (loc, capacity, typ))
                 self.conn.commit()
             except:
                 pass

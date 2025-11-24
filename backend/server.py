@@ -37,7 +37,7 @@ def create_access_token(data:dict, expires_delta:timedelta | None = None):
 
 # custom imports : 'if' statement needed for unit tests
 if __name__ == '__main__' or __name__=="server":
-    from db_webcafe import WebCafeDB, dict_promos
+    from db_webcafe import WebCafeDB, load_inverse_promos
 else:
     from backend.db_webcafe import WebCafeDB
 
@@ -312,7 +312,7 @@ async def post_calendar(current_login : Annotated[str, Depends(get_current_user)
 
 @app.get("/calendars/available")
 async def get_calendars():
-    return list(dict_promos.keys())[1:]
+    return list(load_inverse_promos())[1:]
 
 
 @app.get("/users/all")
@@ -509,3 +509,5 @@ async def insert_event(e: Annotated[NewEvent, Depends()]):
     return HTTPException(status_code=status.HTTP_200_OK, detail=f"event succesfully added")
 
 
+# @app.get("/xls/by_promo")
+# async def get_xls_by_promo()
