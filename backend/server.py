@@ -327,7 +327,7 @@ async def return_ics_generated():
 async def return_all_events():
     ics_name = "all.ics"
     meta_sidecar = ics_name + ".meta"
-
+    # check if version has changed, i.e. modifications inside SQL db
     db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
     c = db.conn.cursor()
     try:
@@ -437,9 +437,9 @@ async def get_event_ids(event_criteria: Annotated[Event, Depends()]):
         query_dict["promo_id"] = event_criteria.promo_id
 
 
-    print(query_dict)
+    # print(query_dict), for debugging only
         
-    ids = db._get_events_id(query_dict)
+    ids = db._get_events_id(query_dict) # query database for events
     
     if ids == -1:
         return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="query failed")

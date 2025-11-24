@@ -1,11 +1,12 @@
 import sqlite3
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from icalendar import Calendar, Event
-
+from zoneinfo import ZoneInfo
 # Handle promotions instances
 dict_promos = {"pas de promo choisie !":0, "Intranet":1, "M1 E3A":2, "PSEE":3, "Saphire":4}
 inverse_promos = {v: k for k, v in dict_promos.items()}
+PARIS = ZoneInfo("Europe/Paris")
 
 
 def convertPromoStrToInt(p_str:str):
@@ -476,12 +477,15 @@ class WebCafeDB:
 
             # Parse timestamps safely
             def parse_dt(dt_str):
+                """ Parse local datetime and returns UTC time"""
                 try:
-                    return datetime.fromisoformat(dt_str)
+                    dt = datetime.fromisoformat(dt_str)
                 except ValueError:
                     # handle non-ISO formats like "2025-11-04 10:00"
-                    return datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
-
+                    dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M-01:00")
+                dt = dt.replace(tzinfo=PARIS)
+                return dt.astimezone(timezone.utc)
+            
             start_dt = parse_dt(start)
             end_dt = parse_dt(end)
 
@@ -494,7 +498,7 @@ class WebCafeDB:
                 "description",
                 f"Classroom: {c_id}, User: {u_id}, Promo: {p_id}",
             )
-            ical_event.add("location", f"{c_id}")
+            ical_event.add("location", f"{c_id}")   
             ical_event.add("dtstamp", datetime.now(timezone.utc))
 
             cal.add_component(ical_event)
