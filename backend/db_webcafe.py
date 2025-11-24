@@ -70,6 +70,8 @@ class WebCafeDB:
             c.close()
             return -2    # if False insertion failed
         
+
+        
     def deleteUser(self, table_name, login:str="", id_key:int=0):
         """ Deletes existing user"""
         c = self.conn.cursor()
