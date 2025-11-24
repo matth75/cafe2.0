@@ -50,48 +50,69 @@ class WebCafeDB:
         
         """ Create new User with example syntax : 
         db.insertUser(table_name, "login", "email@email.com", "h_password", ...)"""
-
-        # Check if user already exists
-        if (self._userExists(login=login)):
-            return -1   # login already used : do not insert, name already used
-        
-        # convert promotion string name to int
-        promo_id = convertPromoStrToInt(promo_str)
-
-        c = self.conn.cursor()
+        c= None
         try:
-            c.execute("INSERT INTO users (login, email, nom, prenom, hpwd, birthday, promo_id, teacher, superuser, noteKfet) VALUES(? ,? ,?, ?, ?, ?, ?, ?, ?, ?)", 
-                      (login, email, nom, prenom, hpwd, birthday, promo_id, teacher, superuser, noteKfet))
-            self.conn.commit()
-            c.close()
-            return 1 #user : {login} succesfully created
+        # Check if user already exists
+            if (self._userExists(login=login)):
+                return -1   # login already used : do not insert, name already used
         
-        except: 
-            c.close()
+            # convert promotion string name to int
+            promo_id = convertPromoStrToInt(promo_str)
+
+            c = self.conn.cursor()
+            c.execute("INSERT INTO users (login, email, nom, prenom, hpwd, birthday, promo_id, teacher, superuser, noteKfet) VALUES(? ,? ,?, ?, ?, ?, ?, ?, ?, ?)", 
+                          (login, email, nom, prenom, hpwd, birthday, promo_id, teacher, superuser, noteKfet))
+            self.conn.commit()
+            return 1 #user : {login} succesfully created
+
+        except Exception: 
             return -2    # if False insertion failed
         
+        finally:
+            if c is not None:
+                try: 
+                    c.close() 
+                except:
+                    pass
+        
+        
 
         
-    def deleteUser(self, table_name, login:str="", id_key:int=0):
-        """ Deletes existing user"""
-        c = self.conn.cursor()
-        if (self._userExists(login=login)):
-            c.execute(f"DELETE FROM users WHERE login = '{login}'")
+    def deleteUser(self, login: str) -> int:
+        """
+        Delete user by login.
+        Returns:
+            1  -> user deleted
+            0  -> user does not exist
+            -2 -> database error
+        """
+        try:
+            if not self._userExists(login=login):
+                return 0  # no user to delete
+            c = self.conn.cursor()
+            c.execute("DELETE FROM users WHERE login = ?", (login,))
             self.conn.commit()
             c.close()
+            return 1
+        except Exception:
+            return -2
+
         # TODO: delete by key
 
     
     def _userExists(self, login):
         """ Built in function to check if user exists"""
-        c = self.conn.cursor()
-        user_info = c.execute("SELECT * FROM users WHERE login = ?", (login,)).fetchone()
+        try:
+            c = self.conn.cursor()
+            user_info = c.execute("SELECT * FROM users WHERE login = ?", (login,)).fetchone()
 
-        c.close()
-        if user_info is None:
-            # data sanity check already done
-            return False   # user does not exist : wrong username/password
-        return True
+            c.close()
+            if user_info is None:
+                # data sanity check already done
+                return False   # user does not exist : wrong username/password
+            return True
+        except Exception:
+            return -2
 
     def userCheckPassword(self, login:str, hpwd:str):
         """ Given login page / web fetched username and hashed password,

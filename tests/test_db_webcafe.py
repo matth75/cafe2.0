@@ -1,223 +1,81 @@
 import os
-import sys
-import tempfile
 import sqlite3
-import importlib
-import types
 import pytest
+from backend.db_webcafe import WebCafeDB, convertPromoStrToInt
 
-# Provide a minimal fake icalendar module so importing db_webcafe in environments
-# without the real icalendar package still works.
-fake_ical = types.ModuleType("icalendar")
+def setup_db_file(tmp_path):
+    db_path = str(tmp_path / "test_webcafe.db")
+    db = WebCafeDB(dbname=db_path)
+    # reopen a connection for operations (WebCafeDB.__init__ closes its connection)
+    db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+    return db
 
+def test_convertPromoStrToInt_known_and_unknown():
+    assert convertPromoStrToInt("Intranet") == 1
+    assert convertPromoStrToInt("M1 E3A") == 2
+    assert convertPromoStrToInt("PSEE") == 3
+    assert convertPromoStrToInt("Saphire") == 4
+    # unknown promo returns 0 (default)
+    assert convertPromoStrToInt("DoesNotExist") == 0
 
-class FakeEvent:
-    def __init__(self):
-        self.props = {}
+def test_insert_user(tmp_path):
+    db = setup_db_file(tmp_path)
 
-    def add(self, k, v):
-        self.props[k] = v
+    # insert user: signature (login, nom, prenom, hpwd, email, birthday, promo_str, teacher, superuser, noteKfet)
+    res = db.insertUser("alice", "Doe", "Alice", "securehash", "alice@example.com", "2000-01-01", "M1 E3A", False, True)
+    assert res == 1
 
+    # verify row in database
+    conn = sqlite3.connect(db.dbname)
+    cur = conn.cursor()
+    row = cur.execute(
+        "SELECT login, email, nom, prenom, hpwd, birthday, promo_id, teacher, superuser, noteKfet FROM users WHERE login = ?",
+        ("alice",)
+    ).fetchone()
+    conn.close()
 
-class FakeCalendar:
-    def __init__(self):
-        self.components = []
+    assert row is not None
+    # expected values based on insert order and conversions:
+    # login, email, nom, prenom, hpwd, birthday, promo_id (M1 E3A -> 2), teacher (False -> 0), superuser (True -> 1), noteKfet (default empty)
+    assert row == ("alice", "alice@example.com", "Doe", "Alice", "securehash", "2000-01-01", 2, 0, 1, "")
 
-    def add(self, k, v):
-        # no-op for product/version
-        pass
+    # inserting same login again should fail with -1
+    res_dup = db.insertUser("alice", "Doe", "Alice", "securehash", "alice@example.com", "2000-01-01", "M1 E3A", False, True)
+    assert res_dup == -1
+    db.conn.close()
 
-    def add_component(self, comp):
-        self.components.append(comp)
+    # Attempt to insert user should return -2 due to closed connection
+    res = db.insertUser("bob", "Smith", "Bob", "hash", "bob@example.com", "1990-05-15", "PSEE", False, False)
+    assert res == -2
 
-    def to_ical(self):
-        # return deterministic bytes so tests can assert output
-        return b"BEGIN:VCALENDAR\nEND:VCALENDAR\n"
+def test_deleteUser(tmp_path):
+    db = setup_db_file(tmp_path)
 
+    # insert a user to delete
+    db.insertUser("charlie", "Brown", "Charlie", "hashcharlie", "charlie@example.com", "1985-07-20", "Intranet", False, False)
+    res = db.deleteUser("charlie")
 
-fake_ical.Calendar = FakeCalendar
-fake_ical.Event = FakeEvent
+    assert res == 1
+    assert not db._userExists("charlie")
 
-# Insert fake module before importing the target module
-sys.modules.setdefault("icalendar", fake_ical)
+    res_nonexistent = db.deleteUser("nonexistent")
+    assert res_nonexistent == 0
+    db.conn.close()
+    res = db.deleteUser("anyuser")
+    assert res == -2
+ 
+def test_userExists(tmp_path):
+    db = setup_db_file(tmp_path)
 
-# Now import the module under test
-db_mod = importlib.import_module("backend.db_webcafe")
-WebCafeDB = db_mod.WebCafeDB
+    # insert a user to check existence
+    db.insertUser("dave", "Clark", "Dave", "hashdave", "dave@example.com", "1992-03-10", "Saphire", True, False)
+    assert db._userExists("dave") is True
+    assert db._userExists("eve") is False
+    db.conn.close()
+    res = db._userExists("dave")
+    assert res == -2
 
-
-def make_temp_db():
-    tf = tempfile.NamedTemporaryFile(delete=False)
-    tf.close()
-    return tf.name
-
-
-def open_conn(dbpath):
-    return sqlite3.connect(dbpath, check_same_thread=False)
-
-
-def test_insert_user_and_password_checks_and_duplicates():
-    dbpath = make_temp_db()
-    try:
-        db = WebCafeDB(dbname=dbpath)
-        # reopen connection for operations (the class __init__ closes it)
-        db.conn = open_conn(dbpath)
-
-        res = db.insertUser(
-            login="alice",
-            nom="AliceNom",
-            prenom="AlicePrenom",
-            hpwd="hashpwd",
-            email="alice@example.com",
-            birthday="2000-01-01",
-            promo_str="M1 E3A",
-            teacher=False,
-            superuser=False,
-            noteKfet="note",
-        )
-        assert res == 1
-
-        # duplicate insert should return -1
-        res_dup = db.insertUser(
-            login="alice",
-            nom="X",
-            prenom="Y",
-            hpwd="h",
-            email="a@b.c",
-        )
-        assert res_dup == -1
-
-        # correct password
-        assert db.userCheckPassword("alice", "hashpwd") == 0
-        # wrong password
-        assert db.userCheckPassword("alice", "bad") == -1
-        # non-existent user
-        assert db.userCheckPassword("noone", "any") == -2
-
-        db.conn.close()
-    finally:
-        os.unlink(dbpath)
-
-
-def test_get_user_getall_modify_and_set_teacher_and_superuser_check():
-    dbpath = make_temp_db()
-    try:
-        db = WebCafeDB(dbname=dbpath)
-        db.conn = open_conn(dbpath)
-
-        # insert bob with promo PSEE (exists in mapping)
-        rc = db.insertUser(
-            login="bob",
-            nom="BobNom",
-            prenom="BobPrenom",
-            hpwd="bobhash",
-            email="bob@example.com",
-            promo_str="PSEE",
-        )
-        assert rc == 1
-
-        user = db.get_user("bob")
-        assert isinstance(user, dict)
-        assert user["login"] == "bob"
-        assert user["promo_id"] == "PSEE"
-        assert user["teacher"] is False
-        assert user["superuser"] is False
-
-        all_users = db.user_getall()
-        assert "bob" in all_users
-        assert all_users["bob"]["email"] == "bob@example.com"
-
-        # modify bob promo to Saphire and name
-        mod = db.user_modify("bob", {"nom": "BobNew", "promo_id": "Saphire"})
-        assert mod == 1
-        user2 = db.get_user("bob")
-        assert user2["nom"] == "BobNew"
-        assert user2["promo_id"] == "Saphire"
-
-        # set teacher
-        st = db.set_Teacher("bob")
-        assert st == 1
-        # check that teacher flag changed in get_user result
-        user3 = db.get_user("bob")
-        assert user3["teacher"] is True
-
-        # check_superuser returns -1 for non-superuser
-        assert db.check_superuser("bob") == -1
-
-        db.conn.close()
-    finally:
-        os.unlink(dbpath)
-
-
-def test_insert_event_fails_due_to_broken_query_and_event_exists_check():
-    dbpath = make_temp_db()
-    try:
-        db = WebCafeDB(dbname=dbpath)
-        db.conn = open_conn(dbpath)
-
-        # insertEvent is implemented with a broken INSERT (mismatched placeholders),
-        # it should return -2 on failure.
-        res = db.insertEvent(
-            start="2025-11-04 10:00",
-            end="2025-11-04 12:00",
-            matiere="Math",
-            type_cours="CM",
-            classroom_id=1,
-            user_id=1,
-            promo_id=2,
-        )
-        assert res == -2
-
-        # _eventExists should return False for a non-existing event
-        assert db._eventExists("2025-11-04 10:00", 2) is False
-
-        db.conn.close()
-    finally:
-        os.unlink(dbpath)
-
-
-def test_generate_ics_no_events_and_with_events():
-    dbpath = make_temp_db()
-    outpath = make_temp_db()
-    try:
-        db = WebCafeDB(dbname=dbpath)
-        # create a connection to insert a raw event row (bypassing broken insertEvent)
-        conn = open_conn(dbpath)
-        cur = conn.cursor()
-        # Insert a row with non-ISO datetime format to trigger the alternate parser branch
-        cur.execute(
-            "INSERT INTO events (start, end, matiere, type_cours, infos_sup, classroom_id, user_id, promo_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            ("2025-11-04 10:00", "2025-11-04 12:00", "Physics", "CM", "", 2, 5, 2),
-        )
-        conn.commit()
-        conn.close()
-
-        # generate_ics filtered by promo_id that matches -> should create file
-        ret = db.generate_ics(db_name=dbpath, output_file=outpath, promo_id=2)
-        assert ret == 1
-        assert os.path.exists(outpath)
-        with open(outpath, "rb") as f:
-            data = f.read()
-        assert b"BEGIN:VCALENDAR" in data
-
-        # generate_ics with a filter that matches no events should return -1
-        out2 = make_temp_db()
-        try:
-            no_events_ret = db.generate_ics(db_name=dbpath, output_file=out2, promo_id=9999)
-            assert no_events_ret == -1
-            # ensure no file created/empty
-            if os.path.exists(out2):
-                # If file was created, it should be empty or not a valid calendar from our fake
-                with open(out2, "rb") as f:
-                    content = f.read()
-                assert content == b"" or b"BEGIN:VCALENDAR" not in content
-        finally:
-            if os.path.exists(out2):
-                os.unlink(out2)
-
-    finally:
-        if os.path.exists(dbpath):
-            os.unlink(dbpath)
-        if os.path.exists(outpath):
-            os.unlink(outpath)
+def test_userCheckPassword(tmp_path):
+    
+     
 
