@@ -100,13 +100,17 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getUsersInfo, mapApiUser } from '@/api'
 import type { UserProfile } from '@/api'
 import SubCalendar from '@/components/SubCalendar.vue'
 import UserAvatar from '@/components/UserAvatar.vue'
-import { emitAuthEvent } from '@/utils/authEvents'
+import {
+  emitAuthEvent,
+  PROFILE_UPDATED_EVENT,
+  type ProfileUpdatedDetail,
+} from '@/utils/authEvents'
 
 
 
@@ -193,10 +197,37 @@ function handleSubmit() {
   isCalendarModalOpen.value = false
 }
 
+function handleProfileUpdated(event: Event) {
+  if (!user.value) {
+    return
+  }
+
+  const detail = (event as CustomEvent<ProfileUpdatedDetail>).detail
+  if (!detail || typeof detail.promoId === 'undefined') {
+    return
+  }
+
+  user.value.promo_id = detail.promoId ?? false
+}
 
 onMounted(() => {
   requireToken()
   fetchProfile()
+  if (typeof window !== 'undefined') {
+    window.addEventListener(
+      PROFILE_UPDATED_EVENT,
+      handleProfileUpdated as EventListener,
+    )
+  }
+})
+
+onBeforeUnmount(() => {
+  if (typeof window !== 'undefined') {
+    window.removeEventListener(
+      PROFILE_UPDATED_EVENT,
+      handleProfileUpdated as EventListener,
+    )
+  }
 })
 </script>
 

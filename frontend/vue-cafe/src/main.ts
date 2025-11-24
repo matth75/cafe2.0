@@ -6,7 +6,6 @@ import router from '@/router/index.ts'
 //import css
 import '@/assets/css/calendar.css'
 import '@/assets/css/main.css'
-import '@/assets/css/main.css'
 import '@fortawesome/fontawesome-free/css/all.min.css'
 import '@/assets/css/fontawesome-all.min.css'
 
@@ -15,14 +14,20 @@ import 'vuetify/styles'
 import { createVuetify } from 'vuetify'
 import * as components from 'vuetify/components'
 import * as directives from 'vuetify/directives'
+import { VCalendar } from 'vuetify/labs/VCalendar'
 
 
 const vuetify = createVuetify({
-  components,
+  components: {
+    ...components,
+    VCalendar,
+  },
   directives,
 })
 
 
 // Création et montage de l’application
-createApp(App).use(router).mount('#app')
-// createApp(App).use(vuetify).mount('#app')
+const app = createApp(App)
+app.use(router)
+app.use(vuetify)
+app.mount('#app')

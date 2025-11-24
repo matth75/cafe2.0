@@ -5,264 +5,147 @@
       <p>Actions réservées aux administrateurs de la plateforme CAFE.</p>
     </header>
 
-    <p v-if="error" class="status-message">{{ error }}</p>
+    <div class="panel" style="text-align: center">
+      <select id="promo-select" v-model="selectedPromo" :disabled="status === 'loading' || promoOptions.length === 0">
+        <option value="" disabled>
+          {{ status === 'loading' ? 'Chargement…' : 'Sélectionnez une promo' }}
+        </option>
+        <option v-for="option in promoOptions" :key="option.value" :value="option.value">
+          {{ option.label }}
+        </option>
+      </select>
+      <p v-if="statusMessage" :class="['status-banner', status]">
+        {{ statusMessage }}
+      </p>
+     </div>
+     <br>
+     <div v-if="selectedPromo" class="pannel" style="text-align: center;">
+        <button class="button Button_principal" >Télécharger Excel {{ selectedPromo }}</button>
+          &nbsp; &nbsp; &nbsp;
+        <button class="button Button_principal" >Upload le Excel {{ selectedPromo }}</button>
+    </div>
 
-    
-  </section>
+    </section>
+   
+
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { getUsersList } from '@/api'
+import { onMounted, ref } from 'vue'
+import { getUserCalendars } from '@/api'
 
-type RawUser = Record<string, any>
-type UsersResponse = RawUser[] | Record<string, RawUser>
-
-const users = ref<RawUser[]>([])
-const loading = ref(false)
-const error = ref<string | null>(null)
-type SectionKey = 'teachers' | 'students' | 'superusers'
-const activeFilter = ref<SectionKey>('teachers')
-const filterOptions: Array<{ key: SectionKey; label: string }> = [
-  { key: 'teachers', label: 'Professeurs' },
-  { key: 'students', label: 'Élèves' },
-  { key: 'superusers', label: 'Superusers' },
-]
-
-const toBool = (value: unknown): boolean => {
-  if (typeof value === 'boolean') {
-    return value
-  }
-  if (typeof value === 'number') {
-    return value !== 0
-  }
-  if (typeof value === 'string') {
-    const normalized = value.trim().toLowerCase()
-    return normalized === 'true' || normalized === '1' || normalized === 'oui'
-  }
-  return false
+interface PromoOption {
+  value: string
+  label: string
 }
 
-const resolveEmail = (user: RawUser): string => {
-  const mail = user.mail ?? user.email ?? ''
-  const value = String(mail).trim()
-  return value || 'Email inconnu'
+const promoOptions = ref<PromoOption[]>([])
+const selectedPromo = ref('')
+const status = ref<'idle' | 'loading' | 'error'>('idle')
+const statusMessage = ref('')
+
+function normalizeOption(raw: unknown, index: number): PromoOption | null {
+  if (!raw) return null
+
+  if (typeof raw === 'string') {
+    const value = raw.trim()
+    if (!value) return null
+    return { value, label: value }
+  }
+
+  if (typeof raw === 'object') {
+    const source = raw as Record<string, unknown>
+    const baseValue = source.slug ?? source.id ?? source.value ?? index
+    const baseLabel = source.label ?? source.name ?? source.title ?? baseValue
+    const value = String(baseValue ?? index).trim()
+    const label = String(baseLabel ?? value).trim()
+    return value ? { value, label: label || value } : null
+  }
+
+  return null
 }
 
-const resolveName = (user: RawUser): string => {
-  const nom = user.nom ?? user.last_name ?? ''
-  const prenom = user.prenom ?? user.first_name ?? ''
-  const fallback = user.login ?? ''
+async function loadPromos() {
+  status.value = 'loading'
+  statusMessage.value = ''
 
-  const fullName = `${prenom} ${nom}`.trim()
-  if (fullName) {
-    return fullName
-  }
-  if (fallback) {
-    return String(fallback)
-  }
-  return 'Nom inconnu'
-}
-
-const isSuperuser = (user: RawUser): boolean => {
-  const flag = user.superuser ?? user.is_superuser ?? user.isSuperuser
-  return toBool(flag)
-}
-
-const isTeacher = (user: RawUser): boolean => {
-  const droit = String(user.droit ?? user.role ?? user.right ?? '').toLowerCase()
-  if (droit.includes('prof') || droit.includes('enseignant') || droit.includes('teacher')) {
-    return true
-  }
-  const flag = user.teacher ?? user.is_teacher ?? user.isTeacher
-  return toBool(flag)
-}
-
-const resolveDroit = (user: RawUser): string => {
-  const droit = user.droit ?? user.role ?? user.right
-  if (droit) {
-    return String(droit)
-  }
-  if (isSuperuser(user)) {
-    return 'superuser'
-  }
-  if (isTeacher(user)) {
-    return 'prof'
-  }
-  return 'eleve'
-}
-
-const teacherUsers = computed(() => users.value.filter((user) => isTeacher(user)))
-const superuserUsers = computed(() => users.value.filter((user) => isSuperuser(user)))
-const studentUsers = computed(() =>
-  users.value.filter((user) => !isTeacher(user) && !isSuperuser(user)),
-)
-const userSections = computed(() => [
-  {
-    key: 'teachers' as SectionKey,
-    title: 'Professeurs',
-    users: teacherUsers.value,
-    emptyLabel: 'Aucun professeur trouvé.',
-  },
-  {
-    key: 'students' as SectionKey,
-    title: 'Élèves',
-    users: studentUsers.value,
-    emptyLabel: 'Aucun élève trouvé.',
-  },
-  {
-    key: 'superusers' as SectionKey,
-    title: 'Superusers',
-    users: superuserUsers.value,
-    emptyLabel: 'Aucun superuser trouvé.',
-  },
-])
-const visibleSections = computed(() =>
-  userSections.value.filter((section) => section.key === activeFilter.value),
-)
-
-onMounted(async () => {
-  loading.value = true
-  error.value = null
-
-  const token = typeof window !== 'undefined' ? window.localStorage.getItem('cafe_token') : null
+  const token = localStorage.getItem('cafe_token') ?? undefined
   if (!token) {
-    error.value = 'Authentification requise pour accéder à la liste des utilisateurs.'
-    loading.value = false
+    promoOptions.value = []
+    selectedPromo.value = ''
+    status.value = 'error'
+    statusMessage.value = 'Session expirée, merci de vous reconnecter.'
     return
   }
 
   try {
-    const data = await getUsersList(token)
-    users.value = normalizeUsers(data)
-  } catch (err) {
-    console.error('Failed to fetch users list', err)
-    error.value = 'Impossible de récupérer la liste des utilisateurs.'
-  } finally {
-    loading.value = false
-  }
-})
+    const payload = await getUserCalendars(token)
+    const items = Array.isArray(payload) ? payload : []
+    const normalized = items
+      .map((item, index) => normalizeOption(item, index))
+      .filter((option): option is PromoOption => Boolean(option))
 
-function normalizeUsers(payload: UsersResponse | unknown): RawUser[] {
-  if (!payload) {
-    return []
+    promoOptions.value = normalized
+    selectedPromo.value = normalized[0]?.value ?? ''
+    status.value = 'idle'
+    statusMessage.value = normalized.length
+      ? ''
+      : 'Aucune promo disponible pour le moment.'
+  } catch (error) {
+    console.error('Impossible de récupérer les promos disponibles', error)
+    promoOptions.value = []
+    selectedPromo.value = ''
+    status.value = 'error'
+    statusMessage.value =
+      'Impossible de récupérer la liste des promos disponibles.'
   }
-
-  if (Array.isArray(payload)) {
-    return payload
-  }
-
-  if (typeof payload === 'object') {
-    return Object.entries(payload as Record<string, RawUser>).map(([login, user]) => ({
-      login,
-      ...(user ?? {}),
-    }))
-  }
-
-  return []
 }
+
+onMounted(() => {
+  loadPromos()
+})
 </script>
 
 <style scoped>
-.status-message {
-  margin-top: 1.5rem;
-  padding: 0.75rem 1rem;
-  border-radius: 0.75rem;
-  background: rgba(220, 38, 38, 0.08);
-  border: 1px solid rgba(220, 38, 38, 0.24);
-  color: #b91c1c;
-}
-
-.filter-switch {
-  margin-top: 1.5rem;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-}
-
-.filter-button {
-  padding: 0.5rem 1.1rem;
-  border-radius: 999px;
-  border: 1px solid rgba(99, 102, 241, 0.35);
-  background: #fff;
-  color: #4c51bf;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s ease, color 0.2s ease, box-shadow 0.2s ease;
-}
-
-.filter-button:hover {
-  background: rgba(99, 102, 241, 0.1);
-  box-shadow: 0 10px 18px rgba(76, 81, 191, 0.1);
-}
-
-.filter-button.active {
-  color: #fff;
-  background: #01778b;
-  box-shadow: 0 12px 22px rgba(76, 81, 191, 0.24);
-}
-
-.cards-grid {
-  margin-top: 1.5rem;
-  display: grid;
-  gap: 1.5rem;
-  grid-template-columns: 1fr;
-}
-
-@media (min-width: 768px) {
-  .cards-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-.card {
+.panel {
+  margin-top: 2rem;
+  width: 50%;
   padding: 1.5rem;
   border-radius: 1rem;
-  background: rgba(99, 102, 241, 0.08);
-  border: 1px solid rgba(99, 102, 241, 0.2);
-  box-shadow: 0 12px 22px rgba(76, 81, 191, 0.12);
+  background: #01768b1c;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+  display: flex;
+  flex-direction:column;
+  gap: 1rem;
 }
 
-.card h2 {
-  margin-bottom: 0.75rem;
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.user-list {
+select {
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  font-size: 1rem;
+}
+
+.selection-preview {
   margin: 0;
-  padding: 0;
-  list-style: none;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
+  font-size: 1rem;
 }
 
-.user-item {
-  padding: 0.75rem;
-  border-radius: 0.75rem;
-  background: rgba(255, 255, 255, 0.6);
-  border: 1px solid rgba(99, 102, 241, 0.12);
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.user-name {
+.status-banner {
+  margin: 0;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
   font-weight: 600;
 }
 
-.user-info {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  font-size: 0.95rem;
-  color: #3f3f46;
-}
-
-.muted {
-  color: #6b7280;
-}
-
-.error-text {
-  color: #b91c1c;
+.status-banner.error {
+  background: rgba(192, 57, 43, 0.12);
+  color: #c0392b;
 }
 </style>

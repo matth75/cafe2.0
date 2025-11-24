@@ -23,6 +23,7 @@
               class="button primary submit-button"
               type="submit"
               :disabled="!selectedCalendar"
+              
             >
               Valider
             </button>
@@ -39,6 +40,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { getUserCalendars, saveFavoriteCalendar } from '@/api'
+import { emitProfileUpdated } from '@/utils/authEvents'
 
 interface CalendarOption {
   value: string
@@ -146,6 +148,7 @@ async function handleSubmit() {
     await saveFavoriteCalendar(selectedCalendar.value, token)
     status.value = 'success'
     statusMessage.value = 'Promo sauvegardée.'
+    emitProfileUpdated({ promoId: selectedCalendar.value })
   } catch (error) {
     console.error('Impossible de sauvegarder le calendrier favori.', error)
     status.value = 'error'
