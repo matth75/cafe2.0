@@ -244,23 +244,29 @@ class WebCafeDB:
             return -2 # f"Unable to set user '{login}' to teacher"
 
 
-    def insertEvent(self, start, end, matiere, type_cours, classroom_id:int=0, user_id:int=0, promo_id:int=0):
+    def insertEvent(self, start, end, matiere, type_cours, infos_sup=None, classroom_id:int=0, user_id:int=0, promo_id:int=0):
         """ Add an event to the SQL database. Assume start and end are of datetime.datetime format.
         Assuming for now that classroom ids are given, maybe change this parameter later... """
         # check if event already exists
-        if (self._eventExists(start=start, promo_id=promo_id)):
+        c=None
+        if (self._eventExists(start=start, promo_id=promo_id)==1):
             return -1   # event already exists
-        c = self.conn.cursor()
+        
         try:
-            insert_query = "INSERT INTO events (start, end, classroom_id, teacher_id, promo_id) VALUES (?, ?, ?, ?, ?, ?, ?)"
-            c.execute(insert_query, (start, end, matiere, type_cours, classroom_id, user_id, promo_id))
+            c = self.conn.cursor()
+            
+            c.execute("INSERT INTO events (start, end, matiere, type_cours, infos_sup, classroom_id, user_id, promo_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", (start, end, matiere, type_cours, infos_sup, classroom_id, user_id, promo_id))
             self.conn.commit()
-            c.close()
             return 1    # event correctly created
-
-        except:
-            c.close()
+        except Exception:
             return -2   # failed insertion
+        
+        finally:
+            if c is not None:
+                try:
+                    c.close()
+                except:
+                    pass
 
 
     def deleteEvent(self):
