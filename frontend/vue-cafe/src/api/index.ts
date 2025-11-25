@@ -4,7 +4,7 @@ import axios from "axios";
 const { VITE_API_BASE, VITE_CAL_BASE } = import.meta.env;
 
 export const API_BASE = (VITE_API_BASE as string | undefined) ?? "/api/v1";
-export const CAL_BASE = (VITE_CAL_BASE as string | undefined) ?? "";
+
 
 /** Axios client centralisé */
 export const client = axios.create({
@@ -26,13 +26,6 @@ client.interceptors.response.use(
     return Promise.reject(err);
   }
 );
-
-/* ---- Helpers / URLs ---- */
-export function calendarIcsUrl(slug: string) {
-  if (CAL_BASE) return `${CAL_BASE.replace(/\/$/, "")}/${slug}.ics`;
-  // fallback: suppose API exposes /calendar/:slug.ics on root domain
-  return `${API_BASE.replace(/\/api\/v?\d*$/, "")}/calendar/${slug}.ics`;
-}
 
 /* ---- API functions ---- */
 
@@ -105,6 +98,8 @@ export async function getUsersList(token:string){
   return data;
 }
 
+
+
 // ----- Modify User INFO ----
 // modify API db user with frontend user
 export async function modifyUserInfo(payload: Partial<UserProfile>, token?: string) {
@@ -151,27 +146,11 @@ export function mapApiUser(u: any): UserProfile {
   }
 }
 
+// -----------------Gestion ICS---------------------------
 
-
-
-export async function getCalendars(params?: Record<string, any>) {
-  const { data } = await client.get("/calendars", { params });
+// attraper ics pour une promo
+export async function getICS(promo_id:string){
+  const { data } = await client.get(`/ics/${promo_id}`);
   return data;
 }
 
-export async function getEvents(calendarId: number | string, start?: string, end?: string) {
-  const { data } = await client.get(`/calendars/${calendarId}/events`, { params: { start, end } });
-  return data;
-}
-
-/* Export default pour facilité d'import */
-export default {
-  client,
-  API_BASE,
-  calendarIcsUrl,
-  registerUser,
-  loginUser,
-  getUsersInfo,
-  getCalendars,
-  getEvents,
-};

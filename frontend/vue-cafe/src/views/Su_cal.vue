@@ -19,10 +19,14 @@
       </p>
      </div>
      <br>
-     <div v-if="selectedPromo" class="pannel" style="text-align: center;">
-        <button class="button Button_principal" >Télécharger Excel {{ selectedPromo }}</button>
+
+     <div class="panel" v-if="selectedPromo" style="text-align: center;">
+        <button class="csv button" >Télécharger .csv {{ selectedPromo }}</button>
           &nbsp; &nbsp; &nbsp;
-        <button class="button Button_principal" >Upload le Excel {{ selectedPromo }}</button>
+        <button class="button csv" >Upload le .csv {{ selectedPromo }}</button>
+
+        <Calendar_compo :promo="selectedPromo" />      
+      
     </div>
 
     </section>
@@ -33,6 +37,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { getUserCalendars } from '@/api'
+import Calendar_compo from '@/components/Calendar_compo.vue'
 
 interface PromoOption {
   value: string
@@ -109,14 +114,14 @@ onMounted(() => {
 <style scoped>
 .panel {
   margin-top: 2rem;
-  width: 50%;
   padding: 1.5rem;
   border-radius: 1rem;
   background: #01768b1c;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
   display: flex;
-  flex-direction:column;
+  flex-direction:row;
   gap: 1rem;
+  justify-content: center;
 }
 
 .field {
@@ -148,4 +153,9 @@ select {
   background: rgba(192, 57, 43, 0.12);
   color: #c0392b;
 }
-</style>
+.csv{
+  background: #01778b;
+  color : white;
+
+}
+</style>  

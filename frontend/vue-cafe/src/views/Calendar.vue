@@ -1,93 +1,92 @@
 <template>
-  <section class="content calendar-page">
-    <header class="calendar-header">
-      <h1>Agenda</h1>
-      <div v-if="showCalendarControls || canRefreshCalendar" class="calendar-controls">
-        <template v-if="showCalendarControls">
-          <label for="calendar-select">Calendrier</label>
-          <select id="calendar-select" v-model="selectedCalendarId">
-            <option v-for="source in calendars" :key="source.id" :value="source.id">
-              {{ source.label }}
-            </option>
-          </select>
-        </template>
-        <button v-if="canRefreshCalendar" type="button" class="button small" @click="refreshCurrent"
-          :disabled="isLoading">
-          Rafraîchir
-        </button>
-      </div>
+  <section class="content kawa-page">
+    <header class="major">
+      <h1>Calendriers</h1>
+      <p>Visualisation du calendrier PSEE</p>
     </header>
 
-    <add-to-calendar-button name="Calendrier SIEN" description="ajouter au calendrier" startDate="2025-11-06"
-      startTime="10:15" endTime="17:45" timeZone="Europe/Berlin" location="World Wide Web"
-      icsFile="https://cafe.zpq.ens-paris-saclay.fr/ics/testICS" subscribe iCalFileName="M1 E3A"
-      options="'Apple','Google','iCal','Outlook.com','MicrosoftTeams','Yahoo','Microsoft365'"
-      language="fr"></add-to-calendar-button>
+    <div class="calendar-actions">
+      <button type="button" class="button primary small" :disabled="isLoading" @click="loadCalendar">
+        {{ isLoading ? 'Chargement…' : 'Rafraîchir' }}
+      </button>
+      <span v-if="lastLoaded" class="calendar-hint">
+        Mis à jour à {{ lastLoaded }}
+      </span>
+    </div>
 
     <p v-if="error" class="calendar-status error">{{ error }}</p>
-    <p v-else-if="isLoading" class="calendar-status loading">Chargement…</p>
 
-    <FullCalendar v-if="currentCalendar" class="calendar-widget" :options="calendarOptions" />
+    <FullCalendar
+      v-if="calendarOptions"
+      class="calendar-widget"
+      :options="calendarOptions"
+    />
 
-
-
-    <p v-else class="calendar-status empty">
-      Aucun calendrier disponible pour le moment.
+    <p v-else-if="!isLoading" class="calendar-status empty">
+      Impossible d’afficher le calendrier pour le moment.
     </p>
+
+    <div v-if="selectedEvent" class="event-details">
+      <header>
+        <h2>{{ selectedEvent.title }}</h2>
+        <button class="link-button" type="button" @click="selectedEvent = null">Fermer</button>
+      </header>
+      <dl>
+        <div>
+          <dt>Début</dt>
+          <dd>{{ formatDate(selectedEvent.start) }}</dd>
+        </div>
+        <div>
+          <dt>Fin</dt>
+          <dd>{{ formatDate(selectedEvent.end) }}</dd>
+        </div>
+        <div v-if="selectedEvent.location">
+          <dt>Lieu</dt>
+          <dd>{{ selectedEvent.location }}</dd>
+        </div>
+        <div v-if="selectedEvent.description">
+          <dt>Description</dt>
+          <dd>{{ selectedEvent.description }}</dd>
+        </div>
+      </dl>
+    </div>
   </section>
 </template>
 
-<script setup>
-import { computed, onMounted, ref, watch } from 'vue'
-import 'add-to-calendar-button';
+<script setup lang="ts">
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import FullCalendar from '@fullcalendar/vue3'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import listPlugin from '@fullcalendar/list'
 import interactionPlugin from '@fullcalendar/interaction'
 import iCalendarPlugin from '@fullcalendar/icalendar'
+import { getICS } from '@/api'
+import { all } from 'axios'
 
-const API_BASE =
-  import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api'
+type SelectedEvent = {
+  title: string
+  start: Date | null
+  end: Date | null
+  description?: string
+  location?: string
+}
+
+const PROMO_SLUG = "get_all"
 
 const isLoading = ref(false)
-const error = ref(null)
-
-const calendars = ref([
-  {
-    id: 'sample',
-    label: 'Exemple de calendrier CAFE',
-    type: 'local',
-    events: [
-      {
-        id: 'sample-1',
-        title: 'Réunion d’accueil',
-        start: new Date().toISOString().slice(0, 10),
-        allDay: true,
-      },
-      {
-        id: 'sample-2',
-        title: 'Cours - Architecture des réseaux',
-        start: new Date(new Date().setHours(10, 0, 0)).toISOString(),
-        end: new Date(new Date().setHours(12, 0, 0)).toISOString(),
-      },
-    ],
-  },
-])
-
-const selectedCalendarId = ref(calendars.value[0]?.id ?? null)
-
-const currentCalendar = computed(() =>
-  calendars.value.find((calendar) => calendar.id === selectedCalendarId.value),
-)
-
-const showCalendarControls = computed(() => calendars.value.length > 1)
-const canRefreshCalendar = computed(
-  () => currentCalendar.value?.type === 'json',
-)
+const error = ref<string | null>(null)
+const selectedEvent = ref<SelectedEvent | null>(null)
+const lastLoaded = ref<string | null>(null)
+const icsUrl = ref<string | null>(null)
+let blobUrl: string | null = null
 
 const calendarOptions = computed(() => {
-  const base = {
+  if (!icsUrl.value) {
+    return null
+  }
+
+  return {
     plugins: [
       dayGridPlugin,
       timeGridPlugin,
@@ -105,211 +104,143 @@ const calendarOptions = computed(() => {
     height: 'auto',
     navLinks: true,
     selectable: true,
-    events: [],
-    eventSources: [],
-  }
-
-  if (!currentCalendar.value) {
-    return base
-  }
-
-  if (
-    ['local', 'json'].includes(currentCalendar.value.type) &&
-    currentCalendar.value.events
-  ) {
-    base.events = currentCalendar.value.events
-  }
-
-  if (currentCalendar.value.type === 'ics' && currentCalendar.value.url) {
-    base.eventSources = [
+    eventClick: handleEventClick,
+    eventSources: [
       {
-        id: currentCalendar.value.id,
-        url: currentCalendar.value.url,
+        id: 'psee-ics',
+        url: "https://cafe.zpq.ens-paris-saclay.fr/api/ics/get_all",
         format: 'ics',
       },
-    ]
+    ],
   }
-
-  return base
 })
 
-function normalizeCalendarSource(rawSource, index) {
-  const type = rawSource?.type ?? rawSource?.format ?? 'json'
+function formatDate(date: Date | null) {
+  if (!date) return '—'
+  return date.toLocaleString('fr-FR', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
 
-  if (type === 'ics' && rawSource?.url) {
-    return {
-      id: rawSource.id ?? `ics-${index}`,
-      label: rawSource.label ?? rawSource.name ?? 'Calendrier ICS',
-      type: 'ics',
-      url: rawSource.url,
-    }
-  }
-
-  return {
-    id: rawSource.id ?? `json-${index}`,
-    label: rawSource.label ?? rawSource.name ?? 'Calendrier',
-    type: 'json',
-    url: rawSource.url ?? rawSource.endpoint ?? null,
-    events: Array.isArray(rawSource.events) ? rawSource.events : null,
+function handleEventClick(info: any) {
+  selectedEvent.value = {
+    title: info.event.title,
+    start: info.event.start,
+    end: info.event.end,
+    description: info.event.extendedProps?.description,
+    location: info.event.extendedProps?.location,
   }
 }
 
-function normalizeEvent(rawEvent, index) {
-  if (!rawEvent) {
-    return null
-  }
-
-  const title = rawEvent.title ?? rawEvent.summary ?? `Événement ${index + 1}`
-
-  return {
-    id: rawEvent.id ?? rawEvent.uid ?? `event-${index}`,
-    title,
-    start: rawEvent.start ?? rawEvent.startDate ?? rawEvent.begin,
-    end: rawEvent.end ?? rawEvent.endDate ?? rawEvent.finish ?? null,
-    allDay: Boolean(rawEvent.allDay ?? rawEvent.allday ?? false),
-    extendedProps: rawEvent.extendedProps ?? rawEvent.meta ?? {},
-  }
-}
-
-async function fetchCalendars() {
+async function loadCalendar() {
   isLoading.value = true
   error.value = null
+  selectedEvent.value = null
 
   try {
-    const response = await fetch(`${API_BASE}/calendars`, {
-      credentials: 'include',
-    })
+    const data = await getICS(PROMO_SLUG)
+    const icsContent =
+      typeof data === 'string'
+        ? data
+        : data?.ics ?? data?.content ?? JSON.stringify(data)
 
-    if (!response.ok) {
-      throw new Error('Réponse invalide du serveur')
+    if (!icsContent || icsContent.length < 10) {
+      throw new Error('Flux ICS vide pour la promo sélectionnée.')
     }
 
-    const payload = await response.json()
-
-    if (Array.isArray(payload) && payload.length > 0) {
-      calendars.value = payload
-        .map(normalizeCalendarSource)
-        .filter((item) => item)
-
-      selectedCalendarId.value = calendars.value[0]?.id ?? null
+    if (blobUrl) {
+      URL.revokeObjectURL(blobUrl)
     }
+
+    const blob = new Blob([icsContent], { type: 'text/calendar' })
+    console.log("ICS Blob created:", blob)
+    blobUrl = URL.createObjectURL(blob)
+    icsUrl.value = blobUrl
+    console.log("ICS URL loaded:", icsUrl.value)
+    lastLoaded.value = new Date().toLocaleTimeString('fr-FR')
   } catch (err) {
-    console.error('Unable to fetch calendars', err)
+    console.error('Unable to load ICS feed', err)
     error.value =
-      "Impossible de récupérer les calendriers, affichage d'un exemple."
+      "Impossible de charger le calendrier PSEE pour le moment."
+    icsUrl.value = null
   } finally {
     isLoading.value = false
   }
 }
 
-async function fetchEventsForCalendar(calendar) {
-  if (!calendar?.url) {
-    return
-  }
-
-  isLoading.value = true
-  error.value = null
-
-  try {
-    const response = await fetch(calendar.url, { credentials: 'include' })
-
-    if (!response.ok) {
-      throw new Error('Réponse invalide du serveur')
-    }
-
-    const payload = await response.json()
-    const list = Array.isArray(payload?.events) ? payload.events : payload
-
-    if (Array.isArray(list)) {
-      calendar.events = list
-        .map(normalizeEvent)
-        .filter((item) => item?.start)
-    } else {
-      throw new Error('Aucun événement exploitable reçu')
-    }
-  } catch (err) {
-    console.error('Unable to fetch events', err)
-    error.value =
-      'Impossible de récupérer les événements pour ce calendrier.'
-  } finally {
-    isLoading.value = false
-  }
-}
-
-async function refreshCurrent() {
-  if (currentCalendar.value?.type === 'json') {
-    await fetchEventsForCalendar(currentCalendar.value)
-  }
-}
-
-onMounted(async () => {
-  await fetchCalendars()
-
-  if (currentCalendar.value?.type === 'json' && !currentCalendar.value.events) {
-    await fetchEventsForCalendar(currentCalendar.value)
-  }
+onMounted(() => {
+  loadCalendar()
 })
 
-watch(
-  selectedCalendarId,
-  async (next, prev) => {
-    if (next === prev) {
-      return
-    }
-
-    const source = calendars.value.find((item) => item.id === next)
-
-    if (source?.type === 'json' && !source.events) {
-      await fetchEventsForCalendar(source)
-    }
-  },
-  { flush: 'post' },
-)
+onBeforeUnmount(() => {
+  if (blobUrl) {
+    URL.revokeObjectURL(blobUrl)
+  }
+})
 </script>
 
 <style scoped>
-.calendar-page {
+.kawa-page .calendar-actions {
   display: flex;
-  flex-direction: column;
-  gap: 1.5rem;
-  padding-bottom: 2rem;
-}
-
-.calendar-header {
-  display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: 1rem;
+  margin-bottom: 1rem;
 }
 
-.calendar-controls {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.calendar-controls select {
-  padding: 0.35rem 0.5rem;
+.calendar-hint {
+  font-size: 0.9rem;
+  color: #7f8c8d;
 }
 
 .calendar-status {
-  font-size: 0.95rem;
-  margin: 0;
-}
-
-.calendar-status.loading {
-  color: #888;
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
 }
 
 .calendar-status.error {
+  background: rgba(192, 57, 43, 0.12);
   color: #c0392b;
 }
 
-.calendar-widget {
+.calendar-status.empty {
+  background: rgba(127, 140, 141, 0.2);
+  color: #2c3e50;
+}
+
+.event-details {
+  margin-top: 2rem;
+  padding: 1.5rem;
+  border-radius: 1rem;
   background: #fff;
-  border-radius: 0.75rem;
-  padding: 1rem;
-  box-shadow: 0 8px 24px rgba(15, 179, 15, 0.08);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+}
+
+.event-details header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.event-details dl {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem 1.5rem;
+}
+
+.event-details dt {
+  font-weight: 600;
+  color: #7f8c8d;
+}
+
+.event-details dd {
+  margin: 0.15rem 0 0;
 }
 </style>

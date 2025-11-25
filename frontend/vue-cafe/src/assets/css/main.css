@@ -1496,7 +1496,7 @@ button,
   border-radius: 0.375em;
   border: 0;
   box-shadow: inset 0 0 0 2px #01778b;
-  color: #01778b !important;
+  color: #01778b;
   cursor: pointer;
   display: inline-block;
   font-family: "Roboto Slab", serif;
