@@ -53,7 +53,7 @@ class WebCafeDB:
         c= None
         try:
         # Check if user already exists
-            if (self._userExists(login=login)):
+            if (self._userExists(login=login)==1):
                 return -1   # login already used : do not insert, name already used
         
             # convert promotion string name to int
@@ -87,7 +87,7 @@ class WebCafeDB:
             -2 -> database error
         """
         try:
-            if not self._userExists(login=login):
+            if (self._userExists(login=login)==0):
                 return 0  # no user to delete
             c = self.conn.cursor()
             c.execute("DELETE FROM users WHERE login = ?", (login,))
@@ -100,41 +100,34 @@ class WebCafeDB:
         # TODO: delete by key
 
     
-    def _userExists(self, login):
-        """ Built in function to check if user exists"""
-        try:
-            c = self.conn.cursor()
-            user_info = c.execute("SELECT * FROM users WHERE login = ?", (login,)).fetchone()
 
-            c.close()
-            if user_info is None:
-                # data sanity check already done
-                return False   # user does not exist : wrong username/password
-            return True
-        except Exception:
-            return -2
 
     def userCheckPassword(self, login:str, hpwd:str):
         """ Given login page / web fetched username and hashed password,
           check if user already exists and if password matches """
-        c = self.conn.cursor()
-        user_pwd = c.execute("SELECT hpwd FROM users WHERE login = ?", (login,)).fetchone()
-        c.close()
-        if user_pwd is None:
-            # data sanity check already done
-            return -2   # user does not exist in DB
-        if user_pwd[0] == hpwd:    # 4th column of db
-            # good password
-            return 0    # good login/pwd
-        else:
-            # wrong password
-            return -1    # wrong login/password
+        try:
+            c = self.conn.cursor()
+            user_pwd = c.execute("SELECT hpwd FROM users WHERE login = ?", (login,)).fetchone()
+            c.close()
+            if user_pwd is None:
+                # data sanity check already done
+                return 0   # user does not exist in DB
+            if user_pwd[0] == hpwd:    # 4th column of db
+                # good password
+                return 1    # good login/pwd
+            else:
+                # wrong password
+                return -1    # wrong login/password
+        except Exception:
+            return -2       # Could not connect to db
     
     def get_user(self, login:str):
         try:
             c = self.conn.cursor()
             user_info = c.execute("SELECT login, nom, prenom, email, birthday, promo_id, teacher, superuser, noteKfet  FROM users WHERE login = ?", (login,)).fetchone()
             c.close()
+            if user_info is None:
+                return 0 # user does not exist
             
             # convert promo int number to string
             promo_nb = int(user_info[5])
@@ -159,86 +152,96 @@ class WebCafeDB:
             return {"login":str(user_info[0]), "nom":str(user_info[1]), "prenom":str(user_info[2]),
                     "email":str(user_info[3]), "birthday":str(user_info[4]), "promo_id":promo_str,
                       "teacher": teacher_bool, "superuser":superuser_bool, "noteKfet":str(user_info[8])}
-        except:
-            return "db offline or login doesnt exist"
+        except Exception:
+            return -2
         
     def user_getall(self):
-        c = self.conn.cursor()
-        users = c.execute("SELECT login, email, teacher, superuser, nom, prenom, promo_id FROM users").fetchall()
-        if users is None:
-            return -1
-        else:
-            result = {}
-            fields = ["email", "teacher", "superuser", "nom", "prenom", "promo_id"]
-            for row in users:
-                key = row[0]
-                values = row[1:]
-                inner_json = {}
+        try:
+            c = self.conn.cursor()
+            users = c.execute("SELECT login, email, teacher, superuser, nom, prenom, promo_id FROM users").fetchall()
+            c.close()
+            if len(users) == 0:
+                return 0
+            else:
+                result = {}
+                fields = ["email", "teacher", "superuser", "nom", "prenom", "promo_id"]
+                for row in users:
+                    key = row[0]
+                    values = row[1:]
+                    inner_json = {}
 
-                for field, value in zip(fields, values):
-                    # convert teacher and superuser fields
-                    if field == "teacher" or field == "superuser":
-                        if value == 1:
-                            value = True
-                        elif value == 0:
-                            value = False
-                    # convert promo_id
-                    if field == "promo_id":
-                        # convert promo int number to string
-                        promo_nb = int(value)
-                        if promo_nb in inverse_promos.keys():
-                            value = inverse_promos[promo_nb]
-                        else:
-                            value = "promotion not known ?"
-                    inner_json[field] = value   
-                result[key] = inner_json
-            
-            return result
+                    for field, value in zip(fields, values):
+                        # convert teacher and superuser fields
+                        if field == "teacher" or field == "superuser":
+                            if value == 1:
+                                value = True
+                            elif value == 0:
+                                value = False
+                        # convert promo_id
+                        if field == "promo_id":
+                            # convert promo int number to string
+                            promo_nb = int(value)
+                            if promo_nb in inverse_promos.keys():
+                                value = inverse_promos[promo_nb]
+                            else:
+                                value = "promotion not known ?"
+                        inner_json[field] = value   
+                    result[key] = inner_json
+                return result
+        except Exception:
+            return -2
     
     def user_modify(self, login, new_infos:dict):
         valid_keys = {"nom", "prenom", "promo_id", "birthday", "noteKfet"}
         if len(new_infos) == 0:
-            return -1   # No info to update
-        if set(new_infos).issubset(valid_keys):
+            return 0  # No info to update
+        if (self._userExists(login)==0) or not set(new_infos.keys()).issubset(valid_keys):
+            return -1   # user does not exist or invalid keys
+        c = None
+        try:
             c = self.conn.cursor()
             for key,value in new_infos.items():
                 # convert promo str to int
                 if key == "promo_id":
                     value = convertPromoStrToInt(value)
-                try:
-                    query = f"UPDATE users SET {key} = ? WHERE login = ?"
-                    c.execute(query, (value, login))
-                    self.conn.commit()
-                except:
-                    return -2 # unable to perform modification
-            c.close()
+                query = f"UPDATE users SET {key} = ? WHERE login = ?"
+                c.execute(query, (value, login))
+                self.conn.commit()
             return 1    # all good
-        else:
-            return -3   # wrong values
-
-        
-        
+        except Exception:
+            return -2 # unable to perform modification
+        finally:
+            if c is not None:
+                try:
+                    c.close()
+                except:
+                    pass
 
     def check_superuser(self, login):
+        if (self._userExists(login)==0):
+            return 0   # user does not exist
         try:
             c = self.conn.cursor()
             su_rights = c.execute("SELECT superuser FROM users WHERE login = ?", (login,)).fetchone()
+            c.close()
             if su_rights[0] == 1:
                 return 1 # user is superuser
             return -1    # user is not superuser
-            c.close()
-        except:
+            
+        except Exception:
             return -2       # Could not connect to db
 
     def set_Teacher(self, login):
+        if (self._userExists(login)==0):
+            return 0   # user does not exist
         try :
             c = self.conn.cursor()
             c.execute("UPDATE users SET teacher = 1 WHERE login = ?", (login,))
             self.conn.commit()
             c.close()
             return 1  # {f"User {login} succesfully set to teacher"   # change to number and to HTTP code result in server.py
-        except:
-            return -1 # f"Unable to set user '{login}' to teacher"
+        except Exception:
+            return -2 # f"Unable to set user '{login}' to teacher"
 
 
     def insertEvent(self, start, end, matiere, type_cours, classroom_id:int=0, user_id:int=0, promo_id:int=0):
@@ -265,13 +268,7 @@ class WebCafeDB:
         cursor = self.conn.cursor()
 
 
-    def _eventExists(self, start, promo_id):
-        """Postulat : Deux évenements d'une même promo ne peuvent pas avoir le même instant de début de cours. """
-        c = self.conn.cursor()
-        event_info = c.execute("SELECT * FROM events WHERE start = ? AND promo_id = ?", (start, promo_id)).fetchone()
-        c.close()
 
-        return event_info is not None   # True if event exists
         
     
     def generate_ics(self, db_name: str, output_file: str, classroom_id: int = 0,
@@ -360,7 +357,31 @@ class WebCafeDB:
 
         return 1 # ics succesfully generated
     
+    def _userExists(self, login):
+        """ Built in function to check if user exists"""
+        try:
+            c = self.conn.cursor()
+            user_info = c.execute("SELECT * FROM users WHERE login = ?", (login,)).fetchone()
 
+            c.close()
+            if user_info is None:
+                # data sanity check already done
+                return 0  # user does not exist : wrong username/password
+            return 1
+        except Exception:
+            return -2
+        
+    def _eventExists(self, start, promo_id):
+        """Postulat : Deux évenements d'une même promo ne peuvent pas avoir le même instant de début de cours. """
+        try:
+            c = self.conn.cursor()
+            event_info = c.execute("SELECT * FROM events WHERE start = ? AND promo_id = ?", (start, promo_id)).fetchone()
+            c.close()
+            if (event_info is not None): # True if event exists
+                return 1
+            return 0
+        except Exception:
+            return -2
     # def _fill_classroom(self):
     #     rooms_locations = ["2Z28", "2Z34", "2Z42", "2Z48", "2Z63", "2Z68", "2Z71"]
     #     capacity = 30
