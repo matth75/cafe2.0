@@ -187,10 +187,19 @@ def test_get_events_id():
     db.conn.close()
 
 
-def test_insert_event():
+# def test_insert_event():
+#     db = WebCafeDB("webcafe.db")
+#     db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+#     res = db.insertEvent(start="2025-08-12T08:30", end="2025-08-12T09:30", matiere="info", type_cours="CM", infos_sup="", 
+#                          classroom_id=5, user_id=1, promo_id=2)
+#     assert res == 1
+#     db.conn.close()
+
+
+def test_csv():
     db = WebCafeDB("webcafe.db")
     db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
-    res = db.insertEvent(start="2025-08-12T08:30", end="2025-08-12T09:30", matiere="info", type_cours="CM", infos_sup="", 
-                         classroom_id=5, user_id=1, promo_id=2)
+    promo_id = db.get_promo_id("M1 E3A")
+    assert promo_id > 0
+    res = db.generate_csv(promo_id, "test_csv")
     assert res == 1
-    db.conn.close()

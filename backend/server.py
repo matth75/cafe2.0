@@ -509,5 +509,40 @@ async def insert_event(e: Annotated[NewEvent, Depends()]):
     return HTTPException(status_code=status.HTTP_200_OK, detail=f"event succesfully added")
 
 
+
+@app.get("/csv")
+async def get_csv_by_promo(promo_str:str):
+    # remove whitespaces and replace them with underscores for file creation
+    promo_str_path= promo_str
+    promo_str_path = "_".join(promo_str_path.split())
+
+    # validate promo_str contains only alphanumeric chars
+    if not re.fullmatch(r'[A-Za-z0-9_]+', promo_str_path):
+        return HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail=f"Invalid promotion name: {promo_str}")
+
+    db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+    # get promo id
+    promo_id = db.get_promo_id(promo_str)
+    if promo_id < 0:
+        return HTTPException(status_code=status.HTTP_418_IM_A_TEAPOT, detail=f"no promotion in database by the name {promo_str}")
+    
+    # define path for csv here
+    folder_name = "csv"
+    if not os.path.isdir(folder_name):  # folder does not exist
+        try:
+            os.mkdir(folder_name)
+        except Exception as e:
+            return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"error while managing files")
+
+    # full path         
+    csv_path = f"{folder_name}/{promo_str_path}.csv"
+
+    res = db.generate_csv(promo_id, csv_path)
+    db.conn.close()
+    if res == -2:
+        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
+    
+    return FileResponse(csv_path, filename=csv_path, media_type="text/ics")
+
 # @app.get("/xls/by_promo")
 # async def get_xls_by_promo()

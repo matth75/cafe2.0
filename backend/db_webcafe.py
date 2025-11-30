@@ -3,6 +3,8 @@ import json
 from datetime import datetime, timezone, timedelta
 from icalendar import Calendar, Event
 from zoneinfo import ZoneInfo
+import pandas as pd
+
 # Handle promotions instances
 PARIS = ZoneInfo("Europe/Paris")
 
@@ -125,7 +127,7 @@ class WebCafeDB:
         """ Deletes existing user"""
         c = self.conn.cursor()
         if (self._userExists(login=login)):
-            c.execute(f"DELETE FROM users WHERE login = '{login}'")
+            c.execute(f"DELETE FROM users WHERE login = ?", (login,))
             self.conn.commit()
             c.close()
         # TODO: delete by key
@@ -359,7 +361,7 @@ class WebCafeDB:
 
         return ids if ids else -1
     
-        # ...existing code...
+
     def get_classroom_id(self, name: str) -> int:
         """
         Return the classroom_id for a given classroom location/name.
@@ -377,7 +379,7 @@ class WebCafeDB:
         if row is None:
             return -2   # no classroom match
         return int(row[0])
-    # ...existing code...
+
 
     def _get_events_on_ids(self, event_ids: list[int]):
         """ Retrieve full event data (except event_id) for given event ids,
@@ -574,6 +576,36 @@ class WebCafeDB:
             except:
                 pass
         c.close()
+
+
+    def generate_csv(self, promo_id, path):
+        """ Generates a csv file with all data from table events. """
+        query = f"SELECT * FROM events WHERE promo_id = {promo_id}"
+        try:
+            df = pd.read_sql(query, self.conn)
+            df.to_csv(path)
+            return 1    # succesfully created csv
+        except:
+            return -2   # database error
+        
+    def get_promo_id(self, input_promo_str):
+        """ get the promo id from promo str.
+          Returns :
+            - the id (id > 0) if promo str exists ;
+            - -1 : promo str doesnt exist ;
+            - -2 : error fetching database """
+        query = "SELECT promo_id FROM promo WHERE promo_name = ?"
+        try:
+            # NB:  Using this avoids having to close cursor !!
+            row = self.conn.execute(query, (input_promo_str,)).fetchone()
+            if row is not None:
+                return row[0]   # >0 value
+            else:
+                return -1   # promo str doesnt exist
+        except sqlite3.Error:
+            return -2       # error fetching database 
+            
+
 
 
 # db = WebCafeDB()
