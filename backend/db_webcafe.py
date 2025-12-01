@@ -9,6 +9,39 @@ inverse_promos = {v: k for k, v in dict_promos.items()}
 
 
 def convertPromoStrToInt(p_str:str):
+    """
+    Convert a promotional string identifier to its corresponding integer code.
+
+    Parameters
+    ----------
+    p_str : str
+        The promotional string key to look up in the module-level mapping
+        `dict_promos`.
+
+    Returns
+    -------
+    int
+        The integer value associated with `p_str` in `dict_promos`. If
+        `p_str` is not present in `dict_promos`, returns 0.
+
+    Notes
+    -----
+    - This function expects a module-level dictionary named `dict_promos`
+      mapping promotional string keys to integer codes.
+    - No explicit type checking is performed beyond the function signature;
+      passing non-string values may raise a TypeError depending on how
+      `dict_promos` is implemented.
+
+    Examples
+    --------
+    Assuming `dict_promos = {'SUMMER': 1, 'WINTER': 2}`:
+
+    >>> convertPromoStrToInt('SUMMER')
+    1
+
+    >>> convertPromoStrToInt('UNKNOWN')
+    0
+    """
     if p_str not in dict_promos.keys():
         return 0
     else:
