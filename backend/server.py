@@ -1,6 +1,6 @@
 from typing import Annotated
 from pydantic import BaseModel, field_validator, EmailStr
-from fastapi import FastAPI, Depends, HTTPException, Query, status
+from fastapi import FastAPI, Depends, HTTPException, Query, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 import sqlite3
 import jwt
@@ -74,7 +74,7 @@ class User(BaseModel):
     email:Annotated[EmailStr, Query(max_length=50)]
     nom:Annotated[str, Query(max_length=30)]
     prenom:Annotated[str, Query(max_length=30)]
-    hpwd:Annotated[str, Query(max_length=100)]
+    pwd:Annotated[str, Query(max_length=100)]
     birthday:Annotated[date, Query(default="2000-01-01")] 
     promo_id:str | None = ""
     teacher:bool | None = False
@@ -139,6 +139,12 @@ class NewEvent(BaseModel):
                 raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail=f"Invalid characters {v}")
         return v
 
+
+# hashing password so that database loss would not result in plain passwords being exposed
+def get_password_hash(plain_passwd):
+    return pwd_hash.hash(plain_passwd)
+
+
 @app.post("/users/create", status_code=status.HTTP_201_CREATED)
 async def create_user(user:User):
     """automaticaly parses User, if format ok, then adds user in db if possible"""
@@ -148,7 +154,7 @@ async def create_user(user:User):
     res = db.insertUser(login=user.login,
                         nom=user.nom,
                         prenom=user.prenom,
-                        hpwd=user.hpwd, 
+                        hpwd=pwd_hash.hash(user.pwd), 
                         email=user.email,
                         promo_str=user.promo_id,  # type: ignore
                         superuser=user.superuser,  # type: ignore
@@ -163,25 +169,25 @@ async def create_user(user:User):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database unreacheable")
     return {"message":"User succesfully created", "login":str(user.login)}
 
-@app.post("/users/login")
-async def check_user(u_pwd:UserPassword):
-    try:
-        db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
-        res = db.userCheckPassword(u_pwd.login, u_pwd.hpwd)
-        db.conn.close()
-        if res == -1 or res == -2:  
-            raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-        # if res == -2:
-        #     return "user does not exist"
-        else:
-            access_token = create_access_token(data={"sub":u_pwd.login})
-        return Token(access_token=access_token, token_type='bearer') 
-    except:
-        return "could not acces database"
+# @app.post("/users/login")
+# async def check_user(u_pwd:UserPassword):
+#     try:
+#         db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+#         res = db.userCheckPassword(u_pwd.login, u_pwd.hpwd)
+#         db.conn.close()
+#         if res == -1 or res == -2:  
+#             raise HTTPException(
+#             status_code=status.HTTP_401_UNAUTHORIZED,
+#             detail="Incorrect username or password",
+#             headers={"WWW-Authenticate": "Bearer"},
+#         )
+#         # if res == -2:
+#         #     return "user does not exist"
+#         else:
+#             access_token = create_access_token(data={"sub":u_pwd.login})
+#         return Token(access_token=access_token, token_type='bearer') 
+#     except:
+#         return "could not acces database"
 
 
 # ------- ICS management -------
@@ -204,10 +210,11 @@ def authenticate_user(username, pwd):
     hpwd = pwd_hash.hash(pwd)
     try:
         db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
-        res = db.userCheckPassword(username, hpwd)
+        hpwd = db.userGetHashedPwd(username)
+        print(hpwd)
         db.conn.close()
-        if res == 0:
-            return True   
+        if hpwd != -2:
+            return pwd_hash.verify(pwd, hpwd) 
     except:
         return False
 
@@ -217,12 +224,10 @@ async def login(form_data:Annotated[OAuth2PasswordRequestForm, Depends()]):
     # login = form_data.username
     # hpwd = form_data.password
     try:
-        db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
-        res = db.userCheckPassword(form_data.username, form_data.password)
-        db.conn.close()
+        auth_bool = authenticate_user(form_data.username, form_data.password)
     except:
         "db innaccessible"
-    if res == -1 or res == -2:  
+    if not auth_bool:  
         raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Incorrect username or password",
@@ -308,6 +313,8 @@ async def post_calendar(current_login : Annotated[str, Depends(get_current_user)
     return "Access denied / not on the list"
 
 
+@app.get("clasrrom/modify")
+
 @app.get("/classrooms/all")
 async def get_classrooms():
     try:
@@ -334,7 +341,7 @@ async def get_classrooms_detail():
     
 @app.get("/calendars/available")
 async def get_calendars():
-    return list(load_inverse_promos())[1:]
+    return list(load_inverse_promos())
 
 
 @app.get("/users/all")
@@ -567,15 +574,58 @@ async def get_csv_by_promo(promo_str:str):
     return FileResponse(csv_path, filename=csv_path, media_type="text/ics")
 
 
-# def create_endpoint(m_name: str):
-#     async def endpoint(request: Request):
-#         print(request.url)
-#         return f"You called {m_name}"
-#     return endpoint
+def create_dynamic_ics_endpoint(promo_id, promo_name: str):
+    async def endpoint(request: Request):
+        """ Endpoint for downloading ics"""
+        ics_name = f"dynamic_{promo_name}.ics"
+        meta_sidecar = "all.ics.meta"
+        # check if version has changed, i.e. modifications inside SQL db
+        db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+        try:
+            row = db.conn.execute("SELECT version FROM meta WHERE key='events'").fetchone()
+            db_version = row[0] if row else 0
+        finally:
+            db.conn.close()
 
+        cached_version = None
+        if os.path.exists(meta_sidecar):
+            with open(meta_sidecar, 'r') as mf:
+                obj = json.load(mf)
+                cached_version = obj.get("version")
 
-# for m in models:    
-#     app.add_api_route(f"/{m.__name__.lower()}", create_endpoint(m.__name__), methods=["GET"])
+        # check if file doesnt exists or as been modifed
+        if not os.path.exists(ics_name) or cached_version != db_version:
+            lock_path = ics_name + ".lock"  # avoid race conditions while accessing the file
+            with open(lock_path, "w") as lockf:
+                try:
+                    fcntl.flock(lockf, fcntl.LOCK_EX)
+                    res = db.generate_ics(db.dbname, ics_name, promo_id=promo_id)
+                    if res == -2:
+                        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="could not query database")
+                    if res == -1:
+                        return HTTPException(status_code=status.HTTP_412_PRECONDITION_FAILED, detail="no events found for the given filters")
+                    if res == -3:
+                        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="could not save ics.file")
+                    with open(meta_sidecar, "w") as mf:
+                        json.dump({"version": db_version, "generated_at": datetime.utcnow().isoformat()}, mf)
+                finally:
+                    fcntl.flock(lockf, fcntl.LOCK_UN)
+        return FileResponse(ics_name, filename=f"{promo_name}.ics", media_type="text/ics", status_code=status.HTTP_200_OK)
+    return endpoint
+
+def find_allpromos():
+    db.conn = sqlite3.connect(db.dbname)
+    calendars = db.conn.execute("SELECT promo_id, promo_name FROM promo").fetchall()
+    calendars_underscores = []
+
+    for c in calendars:
+        calendars_underscores.append([c[0], "_".join(c[1].split())])
+
+    for c in calendars_underscores:
+        app.add_api_route(f"/ics/{c[1]}", create_dynamic_ics_endpoint(c[0], c[1]), methods=["GET"])
+
+find_allpromos()
+
 
 # @app.get("/xls/by_promo")
 # async def get_xls_by_promo()

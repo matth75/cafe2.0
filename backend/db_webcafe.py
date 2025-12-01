@@ -38,7 +38,7 @@ class WebCafeDB:
             c = self.conn.cursor()
             c.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT,' \
             ' login CHAR(20), email CHAR(40), nom CHAR(30), prenom CHAR(30),' \
-            ' hpwd CHAR(50), birthday DATE, promo_id INT, ' \
+            ' hpwd TEXT, birthday DATE, promo_id INT, ' \
             'teacher BIT, superuser BIT, noteKfet CHAR(30))')
 
             # create EVENTS table
@@ -138,23 +138,13 @@ class WebCafeDB:
     
 
 
-    def userCheckPassword(self, login:str, hpwd:str):
+    def userGetHashedPwd(self, login:str):
         """ Given login page / web fetched username and hashed password,
           check if user already exists and if password matches """
-        try:
-            c = self.conn.cursor()
-            user_pwd = c.execute("SELECT hpwd FROM users WHERE login = ?", (login,)).fetchone()
-            c.close()
-            if user_pwd is None:
-                # data sanity check already done
-                return 0   # user does not exist in DB
-            if user_pwd[0] == hpwd:    # 4th column of db
-                # good password
-                return 1    # good login/pwd
-            else:
-                # wrong password
-                return -1    # wrong login/password
-        except Exception:
+        try:   
+            user_pwd = self.conn.execute("SELECT hpwd FROM users WHERE login = ?", (login,)).fetchone()[0]
+            return user_pwd
+        except :
             return -2       # Could not connect to db
     
     def get_user(self, login:str):
@@ -577,9 +567,9 @@ class WebCafeDB:
         
 
     def _fill_classroom(self):
-        rooms_locations = ["2Z28", "2Z34", "2Z42", "2Z48", "2Z63", "2Z68", "2Z71"]
+        rooms_locations = ["2Z28", "2Z34", "2Z42", "2Z48", "2Z63", "2Z68", "2Z71", "2Z57", "1Y40", "1I82", "2Z61", "C2N", "1Z76"]
         capacity = 30
-        rooms_type = ["TP", "TP", "divers", "CM", "TP", "TP", "TP"]
+        rooms_type = ["TP", "TP", "divers", "CM", "TP", "TP", "TP", "CM", "Exams", "CM", "TP", "labo", "CM"]
         c = self.conn.cursor()
         for loc, typ in zip(rooms_locations, rooms_type):
             try:
