@@ -289,19 +289,17 @@ async def get_my_info(current_user_login : Annotated[str, Depends(get_current_us
 
 @app.post("/users/modify")
 async def modify_my_data(current_user_login : Annotated[str, Depends(get_current_user)], user_info:dict):
-    try :
-        db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
-        res = db.user_modify(current_user_login, user_info)
-        db.conn.close()
-        if res == -1:
-            return HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail="empty data to update")
-        if res == -2:
-            return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="unable to edit info")
-        if res == -3:
-            return HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail="wrong fields provided")
-        return HTTPException(status_code=status.HTTP_202_ACCEPTED, detail=f"user {current_user_login} succesfully modified")
-    except:
-        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+    res = db.user_modify(current_user_login, user_info)
+    db.conn.close()
+    if res == -1:
+        return HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail="empty data to update")
+    if res == -2:
+        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="unable to edit info")
+    if res == -3:
+        return HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail="wrong fields provided")
+    return HTTPException(status_code=status.HTTP_202_ACCEPTED, detail=f"user {current_user_login} succesfully modified")
+
 
 @app.get("/ics/M2")
 async def post_calendar(current_login : Annotated[str, Depends(get_current_user)]): 
@@ -567,6 +565,17 @@ async def get_csv_by_promo(promo_str:str):
         return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
     
     return FileResponse(csv_path, filename=csv_path, media_type="text/ics")
+
+
+# def create_endpoint(m_name: str):
+#     async def endpoint(request: Request):
+#         print(request.url)
+#         return f"You called {m_name}"
+#     return endpoint
+
+
+# for m in models:    
+#     app.add_api_route(f"/{m.__name__.lower()}", create_endpoint(m.__name__), methods=["GET"])
 
 # @app.get("/xls/by_promo")
 # async def get_xls_by_promo()

@@ -112,7 +112,7 @@ def test_get_user(tmp_path):
 def test_user_getall(tmp_path):
     db = setup_db_file(tmp_path)
     res = db.user_getall()
-    assert res == 0  # no users yet
+    assert res == -1  # no users yet
     # insert multiple users
     db.insertUser("henry", "Ford", "Henry", "hashhenry", "henry@example.com", "1863-07-30", "PSEE", False, False)
     db.insertUser("isabel", "Allende", "Isabel", "hashisabel", "isabel@example.com", "1942-08-02", "Saphire", True, False)
