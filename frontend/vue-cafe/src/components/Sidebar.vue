@@ -15,7 +15,7 @@
   </RouterLink>
 </li>
 
-<li v-if="isConnected"><RouterLink to="/calendar">Agenda</RouterLink></li>
+<li v-if="isConnected"><RouterLink to="/calendar">Calendrier</RouterLink></li>
 <li><RouterLink to="/kawa">Machine à Café</RouterLink></li>
 <li><RouterLink to="/contact">Contact</RouterLink></li>
 <li><RouterLink to="/stage">Stage</RouterLink></li>

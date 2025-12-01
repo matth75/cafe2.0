@@ -38,6 +38,7 @@
             <div class="detail">
               <dt>Date de naissance</dt>
               <dd>{{ user.birthday }}</dd>
+              
             </div>
             <div v-if="user.noteKfet" class="detail">
               <dt>Note Kfet</dt>

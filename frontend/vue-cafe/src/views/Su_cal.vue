@@ -17,20 +17,21 @@
       <p v-if="statusMessage" :class="['status-banner', status]">
         {{ statusMessage }}
       </p>
-     </div>
-     <br>
+    </div>
+    <br>
 
-     <div class="panel" v-if="selectedPromo" style="text-align: center;">
-        <button class="csv button" >Télécharger .csv {{ selectedPromo }}</button>
-          &nbsp; &nbsp; &nbsp;
-        <button class="button csv" >Upload le .csv {{ selectedPromo }}</button>
-
-        <Calendar_compo :promo="selectedPromo" />      
+    <div class="panel" v-if="selectedPromo" style="text-align: center;">
+      <div style="display: flex; flex-direction: row; justify-content: center;">
+        <button class="csv button">Télécharger .csv {{ selectedPromo }}</button>
+        &nbsp; &nbsp; &nbsp;
+        <button class="button csv">Upload le .csv {{ selectedPromo }}</button>
+      </div>
+      <Calendar_compo />
       
     </div>
 
-    </section>
-   
+  </section>
+
 
 </template>
 
@@ -119,7 +120,7 @@ onMounted(() => {
   background: #01768b1c;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
   display: flex;
-  flex-direction:row;
+  flex-direction: column;
   gap: 1rem;
   justify-content: center;
 }
@@ -153,9 +154,10 @@ select {
   background: rgba(192, 57, 43, 0.12);
   color: #c0392b;
 }
-.csv{
+
+.csv {
   background: #01778b;
-  color : white;
+  color: white;
 
 }
-</style>  
+</style>

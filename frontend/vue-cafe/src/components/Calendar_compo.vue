@@ -1,4 +1,26 @@
 <template>
+    
+
+    <p v-if="error" class="calendar-status error">{{ error }}</p>
+
+    <FullCalendar
+        v-if="calendarOptions"
+        ref="calendarRef"
+        class="calendar-widget"
+        :options="calendarOptions"
+    />
+
+    <p v-else-if="!isLoading" class="calendar-status empty">
+        Impossible d’afficher le calendrier pour le moment.
+    </p>
+
+    <EventPopUp
+        v-if="selectedEvent"
+        :event="selectedEvent"
+        @close="clearSelectedEvent"
+        @submit="handleEventSubmit"
+    />
+
     <div class="calendar-actions">
         <button type="button" class="button primary small" :disabled="isLoading" @click="loadCalendar">
             {{ isLoading ? 'Chargement…' : 'Rafraîchir' }}
@@ -6,39 +28,6 @@
         <span v-if="lastLoaded" class="calendar-hint">
             Mis à jour à {{ lastLoaded }}
         </span>
-    </div>
-
-    <p v-if="error" class="calendar-status error">{{ error }}</p>
-
-    <FullCalendar v-if="calendarOptions" class="calendar-widget" :options="calendarOptions" />
-
-    <p v-else-if="!isLoading" class="calendar-status empty">
-        Impossible d’afficher le calendrier pour le moment.
-    </p>
-
-    <div v-if="selectedEvent" class="event-details">
-        <header>
-            <h2>{{ selectedEvent.title }}</h2>
-            <button class="link-button" type="button" @click="selectedEvent = null">Fermer</button>
-        </header>
-        <dl>
-            <div>
-                <dt>Début</dt>
-                <dd>{{ formatDate(selectedEvent.start) }}</dd>
-            </div>
-            <div>
-                <dt>Fin</dt>
-                <dd>{{ formatDate(selectedEvent.end) }}</dd>
-            </div>
-            <div v-if="selectedEvent.location">
-                <dt>Lieu</dt>
-                <dd>{{ selectedEvent.location }}</dd>
-            </div>
-            <div v-if="selectedEvent.description">
-                <dt>Description</dt>
-                <dd>{{ selectedEvent.description }}</dd>
-            </div>
-        </dl>
     </div>
 </template>
 
@@ -51,6 +40,7 @@ import listPlugin from '@fullcalendar/list'
 import interactionPlugin from '@fullcalendar/interaction'
 import iCalendarPlugin from '@fullcalendar/icalendar'
 import { getICS } from '@/api'
+import EventPopUp from './event_pop_up.vue'
 
 
 
@@ -67,6 +57,8 @@ const PROMO_SLUG = "get_all"
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 const selectedEvent = ref<SelectedEvent | null>(null)
+const selectedEventId = ref<string | null>(null)
+const calendarRef = ref<any>(null)
 const lastLoaded = ref<string | null>(null)
 const icsUrl = ref<string | null>(null)
 let blobUrl: string | null = null
@@ -95,6 +87,7 @@ const calendarOptions = computed(() => {
         navLinks: true,
         selectable: true,
         eventClick: handleEventClick,
+        eventClassNames,
         eventSources: [
             {
                 id: 'psee-ics',
@@ -105,19 +98,8 @@ const calendarOptions = computed(() => {
     }
 })
 
-function formatDate(date: Date | null) {
-    if (!date) return '—'
-    return date.toLocaleString('fr-FR', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-    })
-}
-
 function handleEventClick(info: any) {
+    const eventKey = getEventKey(info.event)
     selectedEvent.value = {
         title: info.event.title,
         start: info.event.start,
@@ -125,12 +107,55 @@ function handleEventClick(info: any) {
         description: info.event.extendedProps?.description,
         location: info.event.extendedProps?.location,
     }
+    selectedEventId.value = eventKey
+    rerenderEvents()
+}
+
+function handleEventSubmit(payload: {
+    title: string
+    start: string
+    end: string
+    description: string
+    location: string
+}) {
+    
+}
+
+function clearSelectedEvent() {
+    selectedEvent.value = null
+    selectedEventId.value = null
+    rerenderEvents()
+}
+
+function eventClassNames(arg: any) {
+    const eventKey = getEventKey(arg.event)
+    return eventKey && eventKey === selectedEventId.value
+        ? ['calendar-event--selected']
+        : []
+}
+
+function getEventKey(event: any) {
+    return (
+        event?.id ||
+        event?.extendedProps?.uid ||
+        event?._def?.publicId ||
+        event?._instance?.instanceId ||
+        null
+    )
+}
+
+function rerenderEvents() {
+    const api = calendarRef.value?.getApi?.()
+    if (api) {
+        api.rerenderEvents()
+    }
 }
 
 async function loadCalendar() {
     isLoading.value = true
     error.value = null
     selectedEvent.value = null
+    selectedEventId.value = null
 
     try {
         const data = await getICS(PROMO_SLUG)
@@ -203,34 +228,10 @@ onBeforeUnmount(() => {
     color: #2c3e50;
 }
 
-.event-details {
-    margin-top: 2rem;
-    padding: 1.5rem;
-    border-radius: 1rem;
-    background: #fff;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+:deep(.calendar-event--selected .fc-event-main) {
+    box-shadow: 0 0 0 2px #01778b inset !important;
+    background-color: rgba(240, 9, 124, 0.856) !important;
+    color: #014752 !important;
 }
 
-.event-details header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1rem;
-}
-
-.event-details dl {
-    margin: 0;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 0.75rem 1.5rem;
-}
-
-.event-details dt {
-    font-weight: 600;
-    color: #7f8c8d;
-}
-
-.event-details dd {
-    margin: 0.15rem 0 0;
-}
 </style>
