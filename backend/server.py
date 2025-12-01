@@ -74,7 +74,7 @@ class User(BaseModel):
     email:Annotated[EmailStr, Query(max_length=50)]
     nom:Annotated[str, Query(max_length=30)]
     prenom:Annotated[str, Query(max_length=30)]
-    pwd:Annotated[str, Query(max_length=100)]
+    hpwd:Annotated[str, Query(max_length=100)]  # password not actually hashed (hpwd), but name compatible with frontend
     birthday:Annotated[date, Query(default="2000-01-01")] 
     promo_id:str | None = ""
     teacher:bool | None = False
@@ -154,7 +154,7 @@ async def create_user(user:User):
     res = db.insertUser(login=user.login,
                         nom=user.nom,
                         prenom=user.prenom,
-                        hpwd=pwd_hash.hash(user.pwd), 
+                        hpwd=pwd_hash.hash(user.hpwd), 
                         email=user.email,
                         promo_str=user.promo_id,  # type: ignore
                         superuser=user.superuser,  # type: ignore
