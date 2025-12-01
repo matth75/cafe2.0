@@ -310,6 +310,30 @@ async def post_calendar(current_login : Annotated[str, Depends(get_current_user)
     return "Access denied / not on the list"
 
 
+@app.get("/classrooms/all")
+async def get_classrooms():
+    try:
+        conn = sqlite3.connect(db.dbname, check_same_thread=False)
+        rows = conn.execute("SELECT location FROM classroom").fetchall()
+        return [r[0] for r in rows]
+    except:
+        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+@app.get("/classrooms/all/detail")
+async def get_classrooms_detail():
+    try:
+        conn = sqlite3.connect(db.dbname, check_same_thread=False)
+        table_info = conn.execute("PRAGMA table_info(classroom)").fetchall()
+        column_names = [t[1] for t in table_info]
+        print(column_names)
+        res = {}
+        rows = conn.execute("SELECT * FROM classroom").fetchall()
+        for r in rows:
+            res[r[0]] = dict(zip(column_names[1:], r[1:]))
+        return res
+    except:
+        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
 @app.get("/calendars/available")
 async def get_calendars():
     return list(load_inverse_promos())[1:]

@@ -607,6 +607,8 @@ class WebCafeDB:
             
 
 
+# generate endpoints dynamicaly !
+
 
 # db = WebCafeDB()
 # db.conn = sqlite3.connect("webcafe.db")
