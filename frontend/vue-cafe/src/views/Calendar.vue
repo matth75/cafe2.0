@@ -4,58 +4,14 @@
       <h1>Calendriers</h1>
       <p>Visualisation du calendrier PSEE</p>
     </header>
+  
+    <Calendar_compo />
 
-    <div class="calendar-actions">
-      <button type="button" class="button primary small" :disabled="isLoading" @click="loadCalendar">
-        {{ isLoading ? 'Chargement…' : 'Rafraîchir' }}
-      </button>
-      <span v-if="lastLoaded" class="calendar-hint">
-        Mis à jour à {{ lastLoaded }}
-      </span>
-    </div>
-
-    <p v-if="error" class="calendar-status error">{{ error }}</p>
-
-    <FullCalendar
-      v-if="calendarOptions"
-      class="calendar-widget"
-      :options="calendarOptions"
-    />
-
-    <p v-else-if="!isLoading" class="calendar-status empty">
-      Impossible d’afficher le calendrier pour le moment.
-    </p>
-
-    <div v-if="selectedEvent" class="event-details">
-      <header>
-        <h2>{{ selectedEvent.title }}</h2>
-        <button class="link-button" type="button" @click="selectedEvent = null">Fermer</button>
-      </header>
-      <dl>
-        <div>
-          <dt>Début</dt>
-          <dd>{{ formatDate(selectedEvent.start) }}</dd>
-        </div>
-        <div>
-          <dt>Fin</dt>
-          <dd>{{ formatDate(selectedEvent.end) }}</dd>
-        </div>
-        <div v-if="selectedEvent.location">
-          <dt>Lieu</dt>
-          <dd>{{ selectedEvent.location }}</dd>
-        </div>
-        <div v-if="selectedEvent.description">
-          <dt>Description</dt>
-          <dd>{{ selectedEvent.description }}</dd>
-        </div>
-      </dl>
-    </div>
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import FullCalendar from '@fullcalendar/vue3'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import listPlugin from '@fullcalendar/list'
@@ -63,6 +19,7 @@ import interactionPlugin from '@fullcalendar/interaction'
 import iCalendarPlugin from '@fullcalendar/icalendar'
 import { getICS } from '@/api'
 import { all } from 'axios'
+import Calendar_compo from '@/components/Calendar_compo.vue'
 
 type SelectedEvent = {
   title: string

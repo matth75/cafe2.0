@@ -76,7 +76,11 @@ const calendarOptions = computed(() => {
             interactionPlugin,
             iCalendarPlugin,
         ],
-        initialView: 'dayGridMonth',
+        initialView: 'timeGridWeek',
+        weekends: false,
+        slotMinTime: '08:00:00',
+        slotMaxTime: '20:00:00',
+        allDaySlot: false,
         headerToolbar: {
             left: 'prev,next today',
             center: 'title',
@@ -150,6 +154,7 @@ function rerenderEvents() {
         api.rerenderEvents()
     }
 }
+
 
 async function loadCalendar() {
     isLoading.value = true
