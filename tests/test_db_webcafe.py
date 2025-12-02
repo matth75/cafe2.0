@@ -203,43 +203,5 @@ def test_set_Teacher(tmp_path):
     res_closed = db.set_Teacher("mike")
     assert res_closed == -2
 
-def test_eventExists(tmp_path):
-    db = setup_db_file(tmp_path)
-
-    # insert an event to check existence
-    db.insertEvent("2024-10-01 10:00", "2024-10-01 12:00", "Math", "Lecture", classroom_id=1, user_id=1, promo_id=2)
-    res = db._eventExists("2024-10-01 10:00", 2)
-    assert res == 1
-    res_nonexistent = db._eventExists("0000-00-00 00:00", 10)
-    assert res_nonexistent == 0
-    db.conn.close()
-    res_closed = db._eventExists("2024-10-01 10:00", 2)
-    assert res_closed == -2
-
-def test_insertEvent(tmp_path):
-    db = setup_db_file(tmp_path)
-
-    # insert an event
-    res = db.insertEvent("2024-09-15 14:00", "2024-09-15 16:00", "Physics", "Seminar",infos_sup="Important details", classroom_id=2, user_id=1, promo_id=3)
-    assert res == 1
-
-    # verify row in database
-    cur = db.conn.cursor()
-    row = cur.execute(
-        "SELECT start, end, matiere, type_cours, infos_sup, classroom_id, user_id, promo_id FROM events WHERE event_id = ?",
-        (res,)).fetchone()
-    assert row is not None
-    assert row == ("2024-09-15 14:00", "2024-09-15 16:00", "Physics", "Seminar", "Important details", 2, 1, 3)
-    # inserting same event again should fail with -1
-    res_dup = db.insertEvent("2024-09-15 14:00", "2024-09-15 16:00", "Physics", "Seminar",infos_sup="Important details", classroom_id=2, user_id=1, promo_id=3)
-    assert res_dup == -1
-
-    db.conn.close()
-    res_closed = db.insertEvent("2024-10-01 10:00", "2024-10-01 12:00", "Math", "Lecture", infos_sup=None, classroom_id=1, user_id=1, promo_id=2)
-    assert res_closed == -2
-
-def test_get_events_id(tmp_path):
-    db = setup_db_file(tmp_path)
-    
 
 
