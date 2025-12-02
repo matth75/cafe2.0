@@ -144,9 +144,15 @@ async def insert_event(e: Annotated[NewEvent, Depends()]):
     return HTTPException(status_code=status.HTTP_200_OK, detail=f"event succesfully added")
 
 @router.get("/delete")
-async def delete_event(uid:int):
+async def delete_event(uid_str:str):
     """ Deletes an event from database using its unique id"""
     db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+    uid = 0
+    try:
+        uid = int(uid_str.split('@')[0])
+    except:
+        return  HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="uid error")
+    
     res = db.deleteEvent(uid)
     db.conn.close()
     if res == -1:

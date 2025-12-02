@@ -27,12 +27,7 @@ CSV_ROOT_PATH = "csv"
 
 # ----------------------
 
-# custom imports : 'if' statement needed for unit tests
-if __name__ == '__main__' or __name__=="server":
-    from db_webcafe import WebCafeDB, load_inverse_promos
-else:
-    from backend.db_webcafe import WebCafeDB
-
+from db_webcafe import WebCafeDB, load_inverse_promos
 
 
 
@@ -48,7 +43,7 @@ else:
 #         openapi_url=None     # disables OpenAPI JSON schema (/openapi.json)
 #     )
 
-app = FastAPI()
+app = FastAPI(root_path="/api")
 app.include_router(app_stats.router)
 app.include_router(users.router)
 app.include_router(ics.router)
