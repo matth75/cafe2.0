@@ -14,12 +14,18 @@
         Impossible d’afficher le calendrier pour le moment.
     </p>
 
-    <EventPopUp
-        v-if="selectedEvent"
+    <EventModif
+        v-if="isConnected && isSuperuser && selectedEvent"
         :event="selectedEvent"
         @close="clearSelectedEvent"
         @submit="handleEventSubmit"
     />
+
+    <!-- <EventPopUp
+        v-else-if="selectedEvent && !isSuperuser && isConnected"
+        :event="selectedEvent"
+        @close="clearSelectedEvent"
+    /> -->
 
     <div class="calendar-actions">
         <button type="button" class="button primary small" :disabled="isLoading" @click="loadCalendar">
@@ -39,10 +45,12 @@ import timeGridPlugin from '@fullcalendar/timegrid'
 import listPlugin from '@fullcalendar/list'
 import interactionPlugin from '@fullcalendar/interaction'
 import iCalendarPlugin from '@fullcalendar/icalendar'
-import { getICS, getUsersInfo } from '@/api'
+import { getICS } from '@/api'
+import EventModif from './event_modif.vue'
 import EventPopUp from './event_pop_up.vue'
+import { isConnected, isSuperuser, user, syncConnectionStatus } from '@/utils'
 
-const token = ref<string | null>(localStorage.getItem('cafe_token'))
+
 const emit = defineEmits<{
     (event: 'calendar-title', title: string): void
 }>()
@@ -68,8 +76,12 @@ let blobUrl: string | null = null
 
 
 
+
+
+
+
 const calendarOptions = computed(() => {
-    if (!icsUrl.value) {
+    if (!icsUrl.value || !isConnected.value) {
         return null
     }
 
@@ -168,10 +180,14 @@ async function loadCalendar() {
     selectedEventId.value = null
 
     try {
+        const connected = await syncConnectionStatus()
+        if (!connected) {
+            throw new Error('Utilisateur non connecté.')
+        }
         const slug = await fetchPromoSlug()
         emit('calendar-title', slug)
         const data = await getICS(slug)
-        console.log("ICS data fetched for slug:", slug, data)
+        //console.log("ICS data fetched for slug:", slug, data)
         const icsContent =
             typeof data === 'string'
                 ? data
@@ -192,7 +208,9 @@ async function loadCalendar() {
     } catch (err) {
         console.error('Unable to load ICS feed', err)
         error.value =
-            "Impossible de charger le calendrier pour le moment."
+            err instanceof Error && err.message === 'Utilisateur non connecté.'
+                ? "Veuillez vous connecter pour afficher le calendrier."
+                : "Impossible de charger le calendrier pour le moment."
         icsUrl.value = null
         emit('calendar-title', 'Calendriers')
     } finally {
@@ -201,8 +219,13 @@ async function loadCalendar() {
 }
 
 async function fetchPromoSlug(): Promise<string> {
-    const userInfo = await getUsersInfo(token.value || undefined)
-    return normalizePromoSlug(userInfo?.promo_id)
+    if (!user.value?.promo_id) {
+        const refreshed = await syncConnectionStatus()
+        if (!refreshed || !user.value?.promo_id) {
+            return 'get_all'
+        }
+    }
+    return normalizePromoSlug(user.value?.promo_id)
 }
 
 function normalizePromoSlug(value: unknown): string {
@@ -232,7 +255,8 @@ function normalizePromoSlug(value: unknown): string {
 }
 
 
-onMounted(() => {
+onMounted(async () => {
+    await syncConnectionStatus()
     loadCalendar()
 })
 

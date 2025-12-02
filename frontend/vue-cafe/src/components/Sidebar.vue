@@ -19,7 +19,7 @@
 <li><RouterLink to="/kawa">Machine à Café</RouterLink></li>
 <li><RouterLink to="/contact">Contact</RouterLink></li>
 <li><RouterLink to="/stage">Stage</RouterLink></li>
-<li v-if="isSuperuser"><RouterLink to="/superuser">Espace Superuser</RouterLink></li>
+<li v-if="isSuperuser && isConnected"><RouterLink to="/superuser">Espace Superuser</RouterLink></li>
 </ul>
 </nav>
 
@@ -57,18 +57,9 @@ Tazz - Matthew - Pilou
 
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted } from 'vue'
 import { AUTH_EVENT } from '@/utils/authEvents'
-
-const isSuperuser = ref(false)
-const isConnected = ref(false)
-
-
-function syncConnectionStatus() {
-  isConnected.value = typeof window !== 'undefined' && typeof localStorage.getItem('cafe_token') === 'string'
-}
-
-
+import { isConnected, isSuperuser, syncConnectionStatus } from '@/utils'
 
 function syncSuperuserFlag() {
   if (typeof window === 'undefined') {
