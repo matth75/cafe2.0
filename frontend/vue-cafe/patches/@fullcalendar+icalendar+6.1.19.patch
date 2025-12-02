@@ -1,0 +1,12 @@
+diff --git a/node_modules/@fullcalendar/icalendar/index.js b/node_modules/@fullcalendar/icalendar/index.js
+index e684406..8272983 100644
+--- a/node_modules/@fullcalendar/icalendar/index.js
++++ b/node_modules/@fullcalendar/icalendar/index.js
+@@ -167,6 +167,7 @@ function expandICalEvents(iCalExpander, range) {
+ }
+ function buildNonDateProps(iCalEvent) {
+     return {
++        id : iCalEvent.uid,
+         title: iCalEvent.summary,
+         url: extractEventUrl(iCalEvent),
+         extendedProps: {

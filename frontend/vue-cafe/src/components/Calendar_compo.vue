@@ -1,7 +1,7 @@
 <template>
     
 
-    <p v-if="error" class="calendar-status error">{{ error }}</p>
+    <p v-if="error" class="calendar-status error">{{ error }} </p>
 
     <FullCalendar
         v-if="calendarOptions"
@@ -31,7 +31,7 @@
     </div>
 </template>
 
-<script setup lang="ts">
+<script setup lang="ts" >
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import FullCalendar from '@fullcalendar/vue3'
 import dayGridPlugin from '@fullcalendar/daygrid'
@@ -39,20 +39,22 @@ import timeGridPlugin from '@fullcalendar/timegrid'
 import listPlugin from '@fullcalendar/list'
 import interactionPlugin from '@fullcalendar/interaction'
 import iCalendarPlugin from '@fullcalendar/icalendar'
-import { getICS } from '@/api'
+import { getICS, getUsersInfo } from '@/api'
 import EventPopUp from './event_pop_up.vue'
 
-
+const token = ref<string | null>(localStorage.getItem('cafe_token'))
+const emit = defineEmits<{
+    (event: 'calendar-title', title: string): void
+}>()
 
 type SelectedEvent = {
+    uid: string
     title: string
     start: Date | null
     end: Date | null
     description?: string
     location?: string
 }
-
-const PROMO_SLUG = "get_all"
 
 const isLoading = ref(false)
 const error = ref<string | null>(null)
@@ -62,6 +64,9 @@ const calendarRef = ref<any>(null)
 const lastLoaded = ref<string | null>(null)
 const icsUrl = ref<string | null>(null)
 let blobUrl: string | null = null
+
+
+
 
 const calendarOptions = computed(() => {
     if (!icsUrl.value) {
@@ -94,17 +99,19 @@ const calendarOptions = computed(() => {
         eventClassNames,
         eventSources: [
             {
-                id: 'psee-ics',
-                url: "https://cafe.zpq.ens-paris-saclay.fr/api/ics/get_all",
+                id: 'calendar_ics',
+                url: icsUrl.value,
                 format: 'ics',
             },
         ],
     }
 })
 
+
 function handleEventClick(info: any) {
     const eventKey = getEventKey(info.event)
     selectedEvent.value = {
+        uid: info.event.id,
         title: info.event.title,
         start: info.event.start,
         end: info.event.end,
@@ -112,6 +119,7 @@ function handleEventClick(info: any) {
         location: info.event.extendedProps?.location,
     }
     selectedEventId.value = eventKey
+
     rerenderEvents()
 }
 
@@ -124,6 +132,7 @@ function handleEventSubmit(payload: {
 }) {
     
 }
+
 
 function clearSelectedEvent() {
     selectedEvent.value = null
@@ -140,18 +149,14 @@ function eventClassNames(arg: any) {
 
 function getEventKey(event: any) {
     return (
-        event?.id ||
-        event?.extendedProps?.uid ||
-        event?._def?.publicId ||
-        event?._instance?.instanceId ||
-        null
+        event?.id ?? null
     )
 }
 
 function rerenderEvents() {
     const api = calendarRef.value?.getApi?.()
     if (api) {
-        api.rerenderEvents()
+        api.refetchEvents()
     }
 }
 
@@ -163,35 +168,69 @@ async function loadCalendar() {
     selectedEventId.value = null
 
     try {
-        const data = await getICS(PROMO_SLUG)
+        const slug = await fetchPromoSlug()
+        emit('calendar-title', slug)
+        const data = await getICS(slug)
+        console.log("ICS data fetched for slug:", slug, data)
         const icsContent =
             typeof data === 'string'
                 ? data
                 : data?.ics ?? data?.content ?? JSON.stringify(data)
 
         if (!icsContent || icsContent.length < 10) {
+            console.error('Empty ICS content received')
             throw new Error('Flux ICS vide pour la promo sélectionnée.')
         }
-
         if (blobUrl) {
             URL.revokeObjectURL(blobUrl)
         }
-
-        const blob = new Blob([icsContent], { type: 'text/calendar' })
-        console.log("ICS Blob created:", blob)
+        const icsFixed = icsContent.replace(/^ID:/gm, "UID:");
+        const blob = new Blob([icsFixed], { type: "text/calendar" });
         blobUrl = URL.createObjectURL(blob)
         icsUrl.value = blobUrl
-        console.log("ICS URL loaded:", icsUrl.value)
         lastLoaded.value = new Date().toLocaleTimeString('fr-FR')
     } catch (err) {
         console.error('Unable to load ICS feed', err)
         error.value =
-            "Impossible de charger le calendrier PSEE pour le moment."
+            "Impossible de charger le calendrier pour le moment."
         icsUrl.value = null
+        emit('calendar-title', 'Calendriers')
     } finally {
         isLoading.value = false
     }
 }
+
+async function fetchPromoSlug(): Promise<string> {
+    const userInfo = await getUsersInfo(token.value || undefined)
+    return normalizePromoSlug(userInfo?.promo_id)
+}
+
+function normalizePromoSlug(value: unknown): string {
+    if (typeof value === 'number' && !Number.isNaN(value)) {
+        return String(value)
+    }
+
+    if (typeof value === 'string') {
+        const trimmed = value.trim()
+        if (
+            trimmed &&
+            trimmed.toLowerCase() !== 'false' &&
+            trimmed.toLowerCase() !== 'none'
+        ) {
+            return trimmed
+        }
+    }
+
+    if (value && typeof value === 'object' && 'toString' in value) {
+        const casted = String(value)
+        if (casted) {
+            return casted
+        }
+    }
+
+    return 'get_all'
+}
+
 
 onMounted(() => {
     loadCalendar()
@@ -202,6 +241,7 @@ onBeforeUnmount(() => {
         URL.revokeObjectURL(blobUrl)
     }
 })
+
 </script>
 
 <style scoped>

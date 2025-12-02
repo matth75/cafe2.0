@@ -1,144 +1,27 @@
 <template>
   <section class="content kawa-page">
     <header class="major">
-      <h1>Calendriers</h1>
-      <p>Visualisation du calendrier PSEE</p>
+      <h1>Calendrier {{ calendarName }}</h1>
+      <p>Calendrier de ta promo</p>
+      
     </header>
   
-    <Calendar_compo />
+    <Calendar_compo @calendar-title="handleCalendarTitle" />
 
   </section>
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import dayGridPlugin from '@fullcalendar/daygrid'
-import timeGridPlugin from '@fullcalendar/timegrid'
-import listPlugin from '@fullcalendar/list'
-import interactionPlugin from '@fullcalendar/interaction'
-import iCalendarPlugin from '@fullcalendar/icalendar'
-import { getICS } from '@/api'
-import { all } from 'axios'
+import { ref } from 'vue'
 import Calendar_compo from '@/components/Calendar_compo.vue'
 
-type SelectedEvent = {
-  title: string
-  start: Date | null
-  end: Date | null
-  description?: string
-  location?: string
+const DEFAULT_TITLE = 'Calendriers'
+const calendarName = ref<string>(DEFAULT_TITLE)
+
+function handleCalendarTitle(name: string) {
+  const trimmed = name?.trim()
+  calendarName.value = trimmed || DEFAULT_TITLE
 }
-
-const PROMO_SLUG = "get_all"
-
-const isLoading = ref(false)
-const error = ref<string | null>(null)
-const selectedEvent = ref<SelectedEvent | null>(null)
-const lastLoaded = ref<string | null>(null)
-const icsUrl = ref<string | null>(null)
-let blobUrl: string | null = null
-
-const calendarOptions = computed(() => {
-  if (!icsUrl.value) {
-    return null
-  }
-
-  return {
-    plugins: [
-      dayGridPlugin,
-      timeGridPlugin,
-      listPlugin,
-      interactionPlugin,
-      iCalendarPlugin,
-    ],
-    initialView: 'dayGridMonth',
-    headerToolbar: {
-      left: 'prev,next today',
-      center: 'title',
-      right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek',
-    },
-    locale: 'fr',
-    height: 'auto',
-    navLinks: true,
-    selectable: true,
-    eventClick: handleEventClick,
-    eventSources: [
-      {
-        id: 'psee-ics',
-        url: "https://cafe.zpq.ens-paris-saclay.fr/api/ics/get_all",
-        format: 'ics',
-      },
-    ],
-  }
-})
-
-function formatDate(date: Date | null) {
-  if (!date) return '—'
-  return date.toLocaleString('fr-FR', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
-
-function handleEventClick(info: any) {
-  selectedEvent.value = {
-    title: info.event.title,
-    start: info.event.start,
-    end: info.event.end,
-    description: info.event.extendedProps?.description,
-    location: info.event.extendedProps?.location,
-  }
-}
-
-async function loadCalendar() {
-  isLoading.value = true
-  error.value = null
-  selectedEvent.value = null
-
-  try {
-    const data = await getICS(PROMO_SLUG)
-    const icsContent =
-      typeof data === 'string'
-        ? data
-        : data?.ics ?? data?.content ?? JSON.stringify(data)
-
-    if (!icsContent || icsContent.length < 10) {
-      throw new Error('Flux ICS vide pour la promo sélectionnée.')
-    }
-
-    if (blobUrl) {
-      URL.revokeObjectURL(blobUrl)
-    }
-
-    const blob = new Blob([icsContent], { type: 'text/calendar' })
-    console.log("ICS Blob created:", blob)
-    blobUrl = URL.createObjectURL(blob)
-    icsUrl.value = blobUrl
-    console.log("ICS URL loaded:", icsUrl.value)
-    lastLoaded.value = new Date().toLocaleTimeString('fr-FR')
-  } catch (err) {
-    console.error('Unable to load ICS feed', err)
-    error.value =
-      "Impossible de charger le calendrier PSEE pour le moment."
-    icsUrl.value = null
-  } finally {
-    isLoading.value = false
-  }
-}
-
-onMounted(() => {
-  loadCalendar()
-})
-
-onBeforeUnmount(() => {
-  if (blobUrl) {
-    URL.revokeObjectURL(blobUrl)
-  }
-})
 </script>
 
 <style scoped>

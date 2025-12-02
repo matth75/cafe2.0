@@ -150,6 +150,7 @@ export function mapApiUser(u: any): UserProfile {
 
 // attraper ics pour une promo
 export async function getICS(promo_id:string){
+  console.log("Fetching ICS for promo_id:", promo_id);
   const { data } = await client.get(`/ics/${promo_id}`);
   return data;
 }
