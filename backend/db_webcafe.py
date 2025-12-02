@@ -146,7 +146,6 @@ class WebCafeDB:
 
         # TODO: delete by key
 
-    
 
 
     def userGetHashedPwd(self, login:str):
@@ -431,8 +430,69 @@ class WebCafeDB:
         finally:
             c.close()
 
+    def modifyEvent(self, event_id: int, new_infos: dict) -> int:
+        """
+        Modify an existing event identified by event_id with new_infos dictionary.
 
+        Args:
+            event_id (int): The ID of the event to modify.
+            new_infos (dict): A dictionary containing the fields to update.
 
+        Returns:
+            1  : event modified successfully
+            0  : event_id not found
+           -2  : database error (query/commit failed)
+           -1  : invalid input (empty new_infos or invalid keys)
+        """
+        allowed_keys = {"start", "end", "matiere", "type_cours",
+                        "infos_sup", "classroom_id", "user_id", "promo_id"}
+
+        if not new_infos or not set(new_infos.keys()).issubset(allowed_keys) or event_id <= 0:
+            return -1  # invalid input
+
+        # Check if event exists
+        existing_event = self.conn.execute("SELECT 1 FROM events WHERE event_id = ?", (event_id,)).fetchone()
+        if existing_event is None:
+            return 0  # event_id not found
+
+        try:
+            for key, value in new_infos.items():
+                query = f"UPDATE events SET {key} = ? WHERE event_id = ?"
+                self.conn.execute(query, (value, event_id))
+            self.conn.commit()
+            return 1  # event modified successfully
+        except sqlite3.Error:
+            try:
+                self.conn.rollback()
+            except:
+                pass
+            return -2  # database error
+    
+
+    def isClassroomUsed(self, classroom_name: str, start: datetime, end: datetime) -> bool:
+        def _norm_dt(val):
+            # file-level import: from datetime import datetime
+            if isinstance(val, datetime):
+                return val.strftime("%Y-%m-%dT%H:%M")
+            return val
+
+        """ Check if a classroom is used in any event. """
+        classroom_id = self.get_classroom_id(classroom_name)
+        if classroom_id < 0:
+            return -1  # classroom does not exist
+        try:
+            event_info = self.conn.execute("SELECT COUNT(*) FROM events WHERE classroom_id = ? and start = ?", (classroom_id, start,)).fetchone()[0]
+            if event_info < 0:
+                # check for time overlap
+                event_info = self.conn.execute(
+                    "SELECT COUNT(*) FROM events WHERE classroom_id = ? AND (start > ? AND start < ? OR end > ? AND end < ? OR start < ? AND end > ?)",
+                    (classroom_id, _norm_dt(start), _norm_dt(end), _norm_dt(start), _norm_dt(end), _norm_dt(start), _norm_dt(end)),
+                ).fetchone()[0]
+                return event_info > 0  # True if classroom is used
+            else:
+                return event_info > 0  # True if classroom is used
+        except:
+            return -2  # database error
 
     def _eventExists(self, start, promo_id):
         """Postulat : Deux évenements d'une même promo ne peuvent pas avoir le même instant de début de cours. """
