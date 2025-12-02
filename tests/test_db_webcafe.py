@@ -3,6 +3,12 @@ import sqlite3
 import pytest
 from backend.db_webcafe import WebCafeDB, convertPromoStrToInt
 
+"""
+1 : success
+0 : not found
+-1 : failure (e.g., duplicate entry, invalid input)
+-2 : database connection error
+"""
 def setup_db_file(tmp_path):
     db_path = str(tmp_path / "test_webcafe.db")
     db = WebCafeDB(dbname=db_path)
@@ -17,6 +23,8 @@ def test_convertPromoStrToInt_known_and_unknown():
     assert convertPromoStrToInt("Saphire") == 4
     # unknown promo returns 0 (default)
     assert convertPromoStrToInt("DoesNotExist") == 0
+
+
 
 def test_insert_user(tmp_path):
     db = setup_db_file(tmp_path) 
@@ -89,7 +97,6 @@ def test_userCheckPassword(tmp_path):
 
 def test_get_user(tmp_path):
     db = setup_db_file(tmp_path)
-
     # insert a user to retrieve
     db.insertUser("grace", "Hopper", "Grace", "hashgrace", "grace@example.com", "1906-12-09", "Intranet", True, True)
     user_info = db.get_user("grace")
@@ -112,7 +119,7 @@ def test_get_user(tmp_path):
 def test_user_getall(tmp_path):
     db = setup_db_file(tmp_path)
     res = db.user_getall()
-    assert res == -1  # no users yet
+    assert res == 0  # no users yet
     # insert multiple users
     db.insertUser("henry", "Ford", "Henry", "hashhenry", "henry@example.com", "1863-07-30", "PSEE", False, False)
     db.insertUser("isabel", "Allende", "Isabel", "hashisabel", "isabel@example.com", "1942-08-02", "Saphire", True, False)
@@ -155,10 +162,12 @@ def test_user_modify(tmp_path):
     assert res_invalid == -1
     # attempt to modify non-existent user
     res_nonexistent = db.user_modify("nonexistent", {"nom": "Noone"})
-    assert res_nonexistent == -1
+    assert res_nonexistent == 0
     # attempt to modify with empty dict
     res_empty = db.user_modify("jack", {})
-    assert res_empty == 0
+    assert res_empty == -1
+    res_wrong_promo = db.user_modify("jack", {"promo_id": "UnknownPromo"})
+    assert res_wrong_promo == -1
     db.conn.close()
     res_closed = db.user_modify("jack", {"nom": "Closed"})
     assert res_closed == -2
@@ -181,7 +190,6 @@ def test_check_superuser(tmp_path):
 
 def test_set_Teacher(tmp_path):
     db = setup_db_file(tmp_path)
-
     # insert a user to set as teacher
     db.insertUser("mike", "Tyson", "Mike", "hashmike", "mike@example.com", "1966-06-30", "M1 E3A", False, False)
     res = db.set_Teacher("mike")
@@ -193,6 +201,19 @@ def test_set_Teacher(tmp_path):
     assert res_nonexistent == 0
     db.conn.close()
     res_closed = db.set_Teacher("mike")
+    assert res_closed == -2
+
+def test_eventExists(tmp_path):
+    db = setup_db_file(tmp_path)
+
+    # insert an event to check existence
+    db.insertEvent("2024-10-01 10:00", "2024-10-01 12:00", "Math", "Lecture", classroom_id=1, user_id=1, promo_id=2)
+    res = db._eventExists("2024-10-01 10:00", 2)
+    assert res == 1
+    res_nonexistent = db._eventExists("0000-00-00 00:00", 10)
+    assert res_nonexistent == 0
+    db.conn.close()
+    res_closed = db._eventExists("2024-10-01 10:00", 2)
     assert res_closed == -2
 
 def test_insertEvent(tmp_path):
@@ -217,15 +238,8 @@ def test_insertEvent(tmp_path):
     res_closed = db.insertEvent("2024-10-01 10:00", "2024-10-01 12:00", "Math", "Lecture", infos_sup=None, classroom_id=1, user_id=1, promo_id=2)
     assert res_closed == -2
 
-def test_eventExists(tmp_path):
+def test_get_events_id(tmp_path):
     db = setup_db_file(tmp_path)
+    
 
-    # insert an event to check existence
-    db.insertEvent("2024-10-01 10:00", "2024-10-01 12:00", "Math", "Lecture", classroom_id=1, user_id=1, promo_id=2)
-    res = db._eventExists("2024-10-01 10:00", 2)
-    assert res == 1
-    res_nonexistent = db._eventExists("0000-00-00 00:00", 10)
-    assert res_nonexistent == 0
-    db.conn.close()
-    res_closed = db._eventExists("2024-10-01 10:00", 2)
-    assert res_closed == -2
+

@@ -118,7 +118,6 @@ class WebCafeDB:
         
         """ Create new User with example syntax : 
         db.insertUser(table_name, "login", "email@email.com", "h_password", ...)"""
-        c= None
         try:
         # Check if user already exists
             if (self._userExists(login=login)==1):
@@ -126,9 +125,7 @@ class WebCafeDB:
         
             # convert promotion string name to int
             promo_id = convertPromoStrToInt(promo_str)
-
-            c = self.conn.cursor()
-            c.execute("INSERT INTO users (login, email, nom, prenom, hpwd, birthday, promo_id, teacher, superuser, noteKfet) VALUES(? ,? ,?, ?, ?, ?, ?, ?, ?, ?)", 
+            self.conn.execute("INSERT INTO users (login, email, nom, prenom, hpwd, birthday, promo_id, teacher, superuser, noteKfet) VALUES(? ,? ,?, ?, ?, ?, ?, ?, ?, ?)", 
                           (login, email, nom, prenom, hpwd, birthday, promo_id, teacher, superuser, noteKfet))
             self.conn.commit()
             return 1 #user : {login} succesfully created
@@ -136,15 +133,14 @@ class WebCafeDB:
         except: 
             return -2    # if False insertion failed
         
-    def deleteUser(self, table_name, login:str="", id_key:int=0):
+    def deleteUser(self, login:str="", id_key:int=0):
         """ Deletes existing user"""
         try:
-            c = self.conn.cursor()
-            if (self._userExists(login=login)):
-                c.execute(f"DELETE FROM users WHERE login = ?", (login,))
-                self.conn.commit()
-                c.close()
-                return 1
+            if (self._userExists(login=login)==0):
+                return 0
+            self.conn.execute(f"DELETE FROM users WHERE login = ?", (login,))
+            self.conn.commit()
+            return 1
         except Exception:
             return -2
 
@@ -164,13 +160,12 @@ class WebCafeDB:
     
     def get_user(self, login:str):
         try:
-            c = self.conn.cursor()
-            user_info = c.execute(
+
+            user_info = self.conn.execute(
                 "SELECT u.login, u.nom, u.prenom, u.email, u.birthday, COALESCE(p.promo_name, ''), u.teacher, u.superuser, u.noteKfet "
                 "FROM users u LEFT JOIN promo p ON u.promo_id = p.promo_id WHERE u.login = ?",
                 (login,),
             ).fetchone()
-            c.close()
             if user_info is None:
                 return 0 # user does not exist
             
@@ -190,25 +185,23 @@ class WebCafeDB:
             return {"login":str(user_info[0]), "nom":str(user_info[1]), "prenom":str(user_info[2]),
                     "email":str(user_info[3]), "birthday":str(user_info[4]), "promo_id":promo_name,
                       "teacher": teacher_bool, "superuser":superuser_bool, "noteKfet":str(user_info[8])}
-        except Exception:
+        except:
             return -2
         
     def user_getall(self):
-        c = self.conn.cursor()
-        users = c.execute(
-            "SELECT u.login, u.email, u.teacher, u.superuser, u.nom, u.prenom, COALESCE(p.promo_name, '') "
-            "FROM users u LEFT JOIN promo p ON u.promo_id = p.promo_id"
-        ).fetchall()
-        if users is None:   # impossible d'y arriver, il faut être superuser pour accéder à cette fonction !!
-            return -1
-        else:
+        try:
+            users = self.conn.execute(
+                "SELECT u.login, u.email, u.teacher, u.superuser, u.nom, u.prenom, COALESCE(p.promo_name, '') "
+                "FROM users u LEFT JOIN promo p ON u.promo_id = p.promo_id"
+            ).fetchall()
+            if len(users) == 0:   # impossible d'y arriver, il faut être superuser pour accéder à cette fonction !!
+                return 0
             result = {}
             fields = ["email", "teacher", "superuser", "nom", "prenom", "promo_id"]
             for row in users:
                 key = row[0]
                 values = row[1:]
                 inner_json = {}
-
                 for field, value in zip(fields, values):
                     # convert teacher and superuser fields
                     if field == "teacher" or field == "superuser":
@@ -218,65 +211,61 @@ class WebCafeDB:
                             value = False
                     inner_json[field] = value   
                 result[key] = inner_json
-            
             return result
+        except:
+            return -2
     
     def user_modify(self, login, new_infos:dict):
         valid_keys = {"nom", "prenom", "promo_id", "birthday", "noteKfet"}
-        if len(new_infos) == 0:
-            return 0  # No info to update
-        if (self._userExists(login)==0) or not set(new_infos.keys()).issubset(valid_keys):
-            return -3   # user does not exist or invalid keys
+        if (len(new_infos) == 0) or (not set(new_infos.keys()).issubset(valid_keys)):
+            return -1  # No info to update or invalid keys
+        if (self._userExists(login)==0) :
+            return 0   # user does not exist
         try:
             for key,value in new_infos.items():
                 # convert promo str to int
                 if key == "promo_id":
                     value = convertPromoStrToInt(value)
                     if value == 0:
-                        return -2
+                        return -1  # invalid promo string
                 query = f"UPDATE users SET {key} = ? WHERE login = ?"
-                self.conn.execute(query, (value, login))    # better solution !!! c.execute xxxx
+                self.conn.execute(query, (value, login)) 
                 self.conn.commit()
             return 1    # all good
         except:
-            return -2 # unable to perform modification
-   
+            return -2  # database error
+        
     
     def _userExists(self, login):
         """ Built in function to check if user exists"""
-        c = self.conn.cursor()
-        user_info = c.execute("SELECT * FROM users WHERE login = ?", (login,)).fetchone()
-        c.close()
-        if user_info is None:
-            # data sanity check already done
-            return False   # user does not exist : wrong username/password
-
-
-        return True
+        try:
+            user_info = self.conn.execute("SELECT * FROM users WHERE login = ?", (login,)).fetchone()
+            if user_info is None:
+                # data sanity check already done
+                return 0   # user does not exist : wrong username/password
+            return 1
+        except:
+            return -2
+    
     def check_superuser(self, login):
         if (self._userExists(login)==0):
             return 0   # user does not exist
         try:
-            c = self.conn.cursor()
-            su_rights = c.execute("SELECT superuser FROM users WHERE login = ?", (login,)).fetchone()
-            c.close()
+            su_rights = self.conn.execute("SELECT superuser FROM users WHERE login = ?", (login,)).fetchone()
             if su_rights[0] == 1:
                 return 1 # user is superuser
-            return -1    # user is not superuser
-            
-        except Exception:
+            return -1    # user is not superuser  
+        except:
             return -2       # Could not connect to db
 
     def set_Teacher(self, login):
         if (self._userExists(login)==0):
             return 0   # user does not exist
         try :
-            c = self.conn.cursor()
-            c.execute("UPDATE users SET teacher = 1 WHERE login = ?", (login,))
+            self.conn.execute("UPDATE users SET teacher = 1 WHERE login = ?", (login,))
             self.conn.commit()
-            c.close()
             return 1  # {f"User {login} succesfully set to teacher"   # change to number and to HTTP code result in server.py
-        except Exception:
+        except:
             return -2 # f"Unable to set user '{login}' to teacher"
 
 
@@ -294,37 +283,17 @@ class WebCafeDB:
         norm_end = _norm_dt(end)
 
         # check if event already exists
-        if (self._eventExists(start=norm_start, promo_id=promo_id)):
+        if (self._eventExists(start=norm_start, promo_id=promo_id)==1):
             return -1   # event already exists
-        c = self.conn.cursor()
-
         try:
             insert_query = "INSERT INTO events (start, end, matiere, type_cours, infos_sup, classroom_id, user_id, promo_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-            c.execute(insert_query, (norm_start, norm_end, matiere, type_cours, infos_sup, classroom_id, user_id, promo_id))
+            self.conn.execute(insert_query, (norm_start, norm_end, matiere, type_cours, infos_sup, classroom_id, user_id, promo_id))
             self.conn.commit()
-            c.close()
             return 1    # event correctly created
-
         except:
-            c.close()
             return -2   # failed insertion
 
     def _get_events_id(self, criteria: dict = {}, single: bool = False): # type: ignore
-        """
-        Retrieve event id(s) matching arbitrary criteria.
-
-        Args:
-            criteria (dict): mapping column -> value. Value can be:
-                - scalar (equality)
-                - list/tuple (IN query)
-                - None (IS NULL)
-                - datetime.datetime for 'start'/'end' (will be normalized to DB string)
-            single (bool): if True, return a single id (first match) or -1 if none.
-                           if False, return a list of ids (possibly empty).
-
-        Returns:
-            int if single=True, else list[int] or -1 on no results.
-        """
         allowed = { "start", "end", "matiere", "type_cours",
             "infos_sup", "classroom_id", "user_id", "promo_id"
         }
