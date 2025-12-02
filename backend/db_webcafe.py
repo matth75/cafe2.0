@@ -528,7 +528,7 @@ class WebCafeDB:
             end_dt = parse_dt(end)
 
             ical_event = Event()
-            ical_event.add("id", f"{event_id}@webcafe")
+            ical_event.add("uid", f"{event_id}@webcafe")
             ical_event.add("summary", f"{matiere} - {type_cours}")
             ical_event.add("dtstart", start_dt)
             ical_event.add("dtend", end_dt)
