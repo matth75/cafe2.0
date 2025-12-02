@@ -26,8 +26,10 @@
         &nbsp; &nbsp; &nbsp;
         <button class="button csv">Upload le .csv {{ selectedPromo }}</button>
       </div>
-      <Calendar_compo />
-      
+      <br>
+      <h2 style="text-align: left;">Calendrier {{ selectedPromo }}</h2>
+      <Calendar_compo :selectedPromo="selectedPromo" />
+   
     </div>
 
   </section>

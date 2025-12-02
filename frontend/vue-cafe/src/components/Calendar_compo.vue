@@ -3,6 +3,15 @@
 
     <p v-if="error" class="calendar-status error">{{ error }} </p>
 
+    <button
+        v-if="isSuperuser"
+        type="button"
+        class="button primary small"
+        @click="openAddEventModal"
+    >
+        Ajouter un événement
+    </button>
+
     <FullCalendar
         v-if="calendarOptions"
         ref="calendarRef"
@@ -13,6 +22,19 @@
     <p v-else-if="!isLoading" class="calendar-status empty">
         Impossible d’afficher le calendrier pour le moment.
     </p>
+
+    <div
+        v-if="isAddModalOpen && isSuperuser"
+        class="modal-overlay"
+        @click.self="closeAddEventModal"
+    >
+        <div class="modal-content">
+            <EventAdd
+                @close="closeAddEventModal"
+                @create="handleEventCreate"
+            />
+        </div>
+    </div>
 
     <EventModif
         v-if="isConnected && isSuperuser && selectedEvent"
@@ -38,22 +60,36 @@
 </template>
 
 <script setup lang="ts" >
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import FullCalendar from '@fullcalendar/vue3'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import timeGridPlugin from '@fullcalendar/timegrid'
 import listPlugin from '@fullcalendar/list'
 import interactionPlugin from '@fullcalendar/interaction'
 import iCalendarPlugin from '@fullcalendar/icalendar'
-import { getICS } from '@/api'
+import { addEventToICS, getICS, type EventDetail } from '@/api'
+import EventAdd from './event_add.vue'
 import EventModif from './event_modif.vue'
-import EventPopUp from './event_pop_up.vue'
+//import EventPopUp from './event_pop_up.vue'
 import { isConnected, isSuperuser, user, syncConnectionStatus } from '@/utils'
 
 
 const emit = defineEmits<{
     (event: 'calendar-title', title: string): void
 }>()
+
+const props = defineProps<{
+    selectedPromo?: string | false
+}>()
+
+const overridePromo = computed(() => {
+    if (props.selectedPromo === undefined || props.selectedPromo === null) {
+        return null
+    }
+    const value = String(props.selectedPromo).trim()
+    return value.length ? value : null
+})
+
 
 type SelectedEvent = {
     uid: string
@@ -72,6 +108,7 @@ const calendarRef = ref<any>(null)
 const lastLoaded = ref<string | null>(null)
 const icsUrl = ref<string | null>(null)
 let blobUrl: string | null = null
+const isAddModalOpen = ref(false)
 
 
 
@@ -108,6 +145,7 @@ const calendarOptions = computed(() => {
         navLinks: true,
         selectable: true,
         eventClick: handleEventClick,
+        eventContent: renderEventContent,
         eventClassNames,
         eventSources: [
             {
@@ -133,6 +171,47 @@ function handleEventClick(info: any) {
     selectedEventId.value = eventKey
 
     rerenderEvents()
+}
+
+function renderEventContent(arg: any) {
+    const container = document.createElement('div')
+    container.className = 'calendar-event-content'
+
+    const timeEl = document.createElement('div')
+    timeEl.className = 'calendar-event-time'
+    timeEl.textContent = formatEventTime(arg.event)
+    container.appendChild(timeEl)
+
+    const titleEl = document.createElement('div')
+    titleEl.className = 'calendar-event-title'
+    titleEl.textContent = arg.event.title ?? ''
+    container.appendChild(titleEl)
+
+    const location = arg.event.extendedProps?.location
+    if (location) {
+        const locationEl = document.createElement('div')
+        locationEl.className = 'calendar-event-location'
+        locationEl.textContent = location
+        container.appendChild(locationEl)
+    }
+
+    return { domNodes: [container] }
+}
+
+function formatEventTime(event: any) {
+    const start = event.start
+    const end = event.end
+    if (!start) {
+        return ''
+    }
+
+    const formatter = new Intl.DateTimeFormat('fr-FR', {
+        hour: '2-digit',
+        minute: '2-digit',
+    })
+    const startText = formatter.format(start)
+    const endText = end ? formatter.format(end) : ''
+    return endText ? `${startText} – ${endText}` : startText
 }
 
 function handleEventSubmit(payload: {
@@ -172,6 +251,25 @@ function rerenderEvents() {
     }
 }
 
+function openAddEventModal() {
+    isAddModalOpen.value = true
+}
+
+function closeAddEventModal() {
+    isAddModalOpen.value = false
+}
+
+async function handleEventCreate(payload: EventDetail) {
+    try {
+        await addEventToICS(payload)
+        isAddModalOpen.value = false
+        await loadCalendar()
+    } catch (err) {
+        console.error('Unable to create event', err)
+        error.value = "Impossible de créer l'événement."
+    }
+}
+
 
 async function loadCalendar() {
     isLoading.value = true
@@ -184,7 +282,8 @@ async function loadCalendar() {
         if (!connected) {
             throw new Error('Utilisateur non connecté.')
         }
-        const slug = await fetchPromoSlug()
+        const slugOverride = overridePromo.value
+        const slug = slugOverride ?? await fetchPromoSlug()
         emit('calendar-title', slug)
         const data = await getICS(slug)
         //console.log("ICS data fetched for slug:", slug, data)
@@ -260,6 +359,12 @@ onMounted(async () => {
     loadCalendar()
 })
 
+watch(overridePromo, (newValue, oldValue) => {
+    if (newValue !== oldValue) {
+        loadCalendar()
+    }
+})
+
 onBeforeUnmount(() => {
     if (blobUrl) {
         URL.revokeObjectURL(blobUrl)
@@ -269,6 +374,40 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.35);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    overflow-y: auto;
+}
+
+.modal-content {
+    width: min(500px, 90vw);
+    background: #fff;
+    border-radius: 1rem;
+    box-shadow: 0 10px 35px rgba(0, 0, 0, 0.2);
+}
+
+:deep(.calendar-event-content) {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+}
+
+:deep(.calendar-event-time) {
+    font-size: 0.85rem;
+    font-weight: 600;
+}
+
+:deep(.calendar-event-location) {
+    font-size: 0.85rem;
+    color: #555;
+}
+
 .kawa-page .calendar-actions {
     display: flex;
     align-items: center;

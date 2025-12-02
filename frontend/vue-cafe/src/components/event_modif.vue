@@ -77,6 +77,9 @@
         <button class="button small" type="button" @click="resetForm">
           Réinitialiser
         </button>
+        <button type="button" class="button small" @click="handleDelete">
+          Supprimer
+        </button>
       </div>
     </form>
   </div>
@@ -84,8 +87,11 @@
 
 <script setup lang="ts">
 import { reactive, watch } from 'vue'
+import { deleteEvent } from '@/api'
+
 
 interface EventDetail {
+  uid: string
   title: string
   start: Date | null
   end: Date | null
@@ -162,6 +168,26 @@ function handleSubmit() {
 
 function resetForm() {
   hydrateForm(props.event ?? null)
+}
+
+async function handleDelete() {
+  const current = props.event
+  if (!current?.uid) {
+    console.warn('No UID available for deletion')
+    return
+  }
+
+  const confirmed = window.confirm(`Supprimer l’événement "${current.title}" ?`)
+  if (!confirmed) {
+    return
+  }
+
+  try {
+    await deleteEvent(current.uid)
+    emit('close')
+  } catch (err) {
+    console.error('Unable to delete event', err)
+  }
 }
 </script>
 

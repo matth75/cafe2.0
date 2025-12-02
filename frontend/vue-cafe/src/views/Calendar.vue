@@ -6,17 +6,22 @@
       
     </header>
   
-    <Calendar_compo @calendar-title="handleCalendarTitle" />
+    <Calendar_compo
+      :selected-promo="userPromo"
+      @calendar-title="handleCalendarTitle"
+    />
 
   </section>
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import Calendar_compo from '@/components/Calendar_compo.vue'
+import { user } from '@/utils'
 
 const DEFAULT_TITLE = 'Calendriers'
 const calendarName = ref<string>(DEFAULT_TITLE)
+const userPromo = computed(() => user.value?.promo_id ?? '')
 
 function handleCalendarTitle(name: string) {
   const trimmed = name?.trim()

@@ -155,3 +155,30 @@ export async function getICS(promo_id:string){
   return data;
 }
 
+export async function deleteEvent(event_id:string){  
+  const { data } = await client.get(`/ics/delete?uid_str=${event_id}`);
+  return data;
+}
+
+export async function addEventToICS(payload: EventDetail){  
+  const { data } = await client.post(`/ics/insert`, payload);
+  return data;
+}
+
+export interface EventDetail {
+  start: string
+  end: string
+  matiere: string
+  enseignant: string
+  type_cours: boolean
+  location: string
+  promo: string
+  description?: string
+}
+
+
+//import all classroom dispo
+export async function getClassrooms(){  
+  const { data } = await client.get(`/classrooms/all`);
+  return data;
+}

@@ -48,7 +48,7 @@ ENS Paris-Saclay – DER SIEN - M2FESup Intranet
 <footer id="footer">
 <p class="copyright">
 &copy; CAFE / SIEN. Design base: HTML5 UP.<br />
-Version 0.1<br />
+Version 1.0<br />
 Tazz - Matthew - Pilou
 </p>
 </footer>

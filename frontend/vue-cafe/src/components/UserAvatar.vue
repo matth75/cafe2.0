@@ -1,5 +1,6 @@
 <template>
   <div
+    @click="generateColorAvatar"
     class="user-avatar"
     :style="avatarStyle"
     aria-hidden="true"
@@ -9,7 +10,28 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted } from 'vue'
+
+const color1 = ref('')
+const color2 = ref('')
+
+function generateColorAvatar() {
+  const letters = '0123456789ABCDEF'
+  let colorA = '#'
+  let colorB = '#'
+  for (let i = 0; i < 6; i++) {
+    colorA += letters[Math.floor(Math.random() * 16)]
+    colorB += letters[Math.floor(Math.random() * 16)]
+  }
+  color1.value = colorA
+  color2.value = colorB
+}
+const avatarStyle = computed(() => ({
+  width: `${props.size}px`,
+  height: `${props.size}px`,
+  '--color1': color1.value || '#3498db',
+  '--color2': color2.value || '#9b59b6',
+}));
 
 interface UserAvatarProps {
   firstName?: string | null
@@ -30,16 +52,16 @@ const initials = computed(() => {
   return result || '??'
 })
 
-const avatarStyle = computed(() => ({
-  width: `${props.size}px`,
-  height: `${props.size}px`,
-}))
+
+
+onMounted(() => generateColorAvatar())
+
 </script>
 
 <style scoped>
 .user-avatar {
   border-radius: 50%;
-  background: linear-gradient(135deg, #6c5ce7, #0984e3);
+  background: linear-gradient(135deg, var(--color1), var(--color2));
   color: #fff;
   display: grid;
   place-items: center;
