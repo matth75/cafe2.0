@@ -21,6 +21,11 @@ ACCESS_TOKEN_EXPIRES_MINUTES = 30
 ALGORITHM = "HS256"
 SECRET_KEY = "060d236eebec58d5c66cbab9b9961a7d38414536b5d1c7e3d0286eaa25ff765e"
 
+# define path for csv and ics here
+CSV_ROOT_PATH = "csv"
+ICS_ROOT_PATH = "ics"
+ICS_ALL = "all.ics"
+
 pwd_hash = PasswordHash.recommended()
 
 def create_access_token(data:dict, expires_delta:timedelta | None = None):
@@ -191,8 +196,8 @@ async def create_user(user:User):
 
 
 # ------- ICS management -------
-class JsonCalendar():
-    pass
+# class JsonCalendar():
+#     pass
 
 # ---------Login management ---------
 
@@ -372,8 +377,8 @@ async def return_ics_generated():
 
 @app.get("/ics/get_all")
 async def return_all_events():
-    ics_name = "all.ics"
-    meta_sidecar = ics_name + ".meta"
+    ics_name = ICS_ALL
+    meta_sidecar = f"{ICS_ROOT_PATH}/{ICS_ALL}.meta"
     # check if version has changed, i.e. modifications inside SQL db
     db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
     c = db.conn.cursor()
@@ -390,13 +395,16 @@ async def return_all_events():
             obj = json.load(mf)
             cached_version = obj.get("version")
 
+    # ics full path
+    ics_path = f"{ICS_ROOT_PATH}/{ics_name}"
+
     # check if file doesnt exists or as been modifed
-    if not os.path.exists(ics_name) or cached_version != db_version:
-        lock_path = ics_name + ".lock"  # avoid race conditions while accessing the file
+    if not os.path.exists(ics_path) or cached_version != db_version:
+        lock_path = ics_path + ".lock"  # avoid race conditions while accessing the file
         with open(lock_path, "w") as lockf:
             try:
                 fcntl.flock(lockf, fcntl.LOCK_EX)
-                res = db.generate_ics(db.dbname, ics_name)
+                res = db.generate_ics(db.dbname, ics_path)
                 if res == -2:
                     return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="could not query database")
                 if res == -1:
@@ -408,7 +416,7 @@ async def return_all_events():
             finally:
                 fcntl.flock(lockf, fcntl.LOCK_UN)
 
-    return FileResponse(ics_name, filename=ics_name, media_type="text/ics")
+    return FileResponse(ics_path, filename=ics_name, media_type="text/ics")
                 
 
 
@@ -496,21 +504,6 @@ async def get_event_ids(event_criteria: Annotated[Event, Depends()]):
     return res
 
 
-@app.post("/ics/delete")
-async def delete_event(event_id_to_delete:int):
-    db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
-    res = db.deleteEvent(event_id_to_delete)
-    db.conn.close()
-    if res == -2:
-        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
-    if res == -1:
-        return HTTPException(status_code=status.HTTP_412_PRECONDITION_FAILED, detail="event id not found")
-    if res == -3:
-        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="could not save ics.file")
-    return HTTPException(status_code=status.HTTP_200_OK, detail=f"event {event_id_to_delete} succesfully deleted")
-
-
-
 @app.post("/ics/insert")
 async def insert_event(e: Annotated[NewEvent, Depends()]):
     """ Adds an event to database. """
@@ -537,6 +530,19 @@ async def insert_event(e: Annotated[NewEvent, Depends()]):
     
     return HTTPException(status_code=status.HTTP_200_OK, detail=f"event succesfully added")
 
+@app.get("/ics/delete")
+async def delete_event(uid:int):
+    """ Deletes an event from database using its unique id"""
+    db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+    res = db.deleteEvent(uid)
+    db.conn.close()
+    if res == -1:
+        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"event with unique id:{uid} not found")
+    if res == -2:
+        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
+    if res == -3:
+        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"event unique id:{id} <= 0. Not possible")
+    return HTTPException(status_code=status.HTTP_200_OK, detail=f"event with unique id {id} succesfully deleted")
 
 
 @app.get("/csv")
@@ -555,30 +561,34 @@ async def get_csv_by_promo(promo_str:str):
     if promo_id < 0:
         return HTTPException(status_code=status.HTTP_418_IM_A_TEAPOT, detail=f"no promotion in database by the name {promo_str}")
     
-    # define path for csv here
-    folder_name = "csv"
-    if not os.path.isdir(folder_name):  # folder does not exist
+
+    if not os.path.isdir(CSV_ROOT_PATH):  # folder does not exist
         try:
-            os.mkdir(folder_name)
-        except Exception as e:
-            return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"error while managing files")
+            os.mkdir(CSV_ROOT_PATH)
+        except:
+            return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"error while managing folders")
 
     # full path         
-    csv_path = f"{folder_name}/{promo_str_path}.csv"
+    csv_path = f"{CSV_ROOT_PATH}/{promo_str_path}.csv"
 
     res = db.generate_csv(promo_id, csv_path)
     db.conn.close()
     if res == -2:
         return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
     
-    return FileResponse(csv_path, filename=csv_path, media_type="text/ics")
+    return FileResponse(csv_path, filename=f"{promo_str_path}.csv", media_type="text/ics")
 
+# Create url endpoints for each promotion in SQL table promos. 
+# Functions test if a modification was made to the SQL table "events" by compararing the version stored in
+# "all.ics.meta" file and the version number in the "meta" SQL table. If they are different, or the ics file we are supposed
+# to generate is missing from filesystem, the function then (re)generates the ics file. 
+# The async endpoint then returns the file if everything worked correctly and throws errors if something went wrong.
 
 def create_dynamic_ics_endpoint(promo_id, promo_name: str):
     async def endpoint(request: Request):
         """ Endpoint for downloading ics"""
         ics_name = f"dynamic_{promo_name}.ics"
-        meta_sidecar = "all.ics.meta"
+        meta_sidecar = f"{ICS_ROOT_PATH}/all.ics.meta"
         # check if version has changed, i.e. modifications inside SQL db
         db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
         try:
@@ -593,13 +603,22 @@ def create_dynamic_ics_endpoint(promo_id, promo_name: str):
                 obj = json.load(mf)
                 cached_version = obj.get("version")
 
+        if not os.path.isdir(ICS_ROOT_PATH):
+            try:
+                os.mkdir(ICS_ROOT_PATH)
+            except:
+                return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"error while managing folders")
+
+        # full path
+        ics_path = f"{ICS_ROOT_PATH}/{ics_name}"
+
         # check if file doesnt exists or as been modifed
-        if not os.path.exists(ics_name) or cached_version != db_version:
-            lock_path = ics_name + ".lock"  # avoid race conditions while accessing the file
+        if not os.path.exists(ics_path) or cached_version != db_version:
+            lock_path = ics_path + ".lock"  # avoid race conditions while accessing the file
             with open(lock_path, "w") as lockf:
                 try:
                     fcntl.flock(lockf, fcntl.LOCK_EX)
-                    res = db.generate_ics(db.dbname, ics_name, promo_id=promo_id)
+                    res = db.generate_ics(db.dbname, ics_path, promo_id=promo_id)
                     if res == -2:
                         return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="could not query database")
                     if res == -1:
@@ -607,10 +626,10 @@ def create_dynamic_ics_endpoint(promo_id, promo_name: str):
                     if res == -3:
                         return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="could not save ics.file")
                     with open(meta_sidecar, "w") as mf:
-                        json.dump({"version": db_version, "generated_at": datetime.utcnow().isoformat()}, mf)
+                        json.dump({"version": db_version, "generated_at": str(datetime.now(timezone.utc))}, mf)
                 finally:
                     fcntl.flock(lockf, fcntl.LOCK_UN)
-        return FileResponse(ics_name, filename=f"{promo_name}.ics", media_type="text/ics", status_code=status.HTTP_200_OK)
+        return FileResponse(ics_path, filename=f"{promo_name}.ics", media_type="text/ics", status_code=status.HTTP_200_OK)
     return endpoint
 
 def find_allpromos():

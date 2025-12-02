@@ -4,4 +4,7 @@ __pycache__
 *.ods
 *.ods#
 *.xls
-
+backend/csv
+backend/ics
+backend/~$all_events.xlsx
+*.DS_Store
