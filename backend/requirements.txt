@@ -1,3 +1,5 @@
+# List of requiered python packages (and versions if specified) for install.
+# Using a conda/mamba environment is optional, but highly recommended.
 python=3.12
 fastapi
 pytest

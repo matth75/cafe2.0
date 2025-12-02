@@ -1,37 +1,44 @@
+""" 
+Author: Matthieu Rouet
+Date of creation: 09/10/2025
+
+Documentation:
+Main file. The FastAPI app is created here. Some endpoints are needed in this file, and some are here as default location?
+All other endpoints are imported here as routers objects, from the routers folder. They are sorted according to their purposes :
+ - /users  : user management (login, modification, personnal infos...) ;
+ - /ics    : handling ics files (download, adding/removing events) ;
+ - /status : test router.   
+
+Dependancies for the app (raw functions, not endpoints) are stored in the dependancies.py file.
+"""
+
+# library imports
 from typing import Annotated
-from pydantic import BaseModel, field_validator, EmailStr
+from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel
 from fastapi import FastAPI, Depends, HTTPException, Query, status, Request
-
 import sqlite3
-import jwt
-from jwt.exceptions import InvalidTokenError
-from datetime import date, timedelta, timezone, datetime
-
+from datetime import timezone, datetime
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 import re
 import os
 import fcntl
 import json
+
+# module imports
 from .routers import app_stats, users, ics
-
 from .dependancies import *
+from .db_webcafe import WebCafeDB, load_inverse_promos
 
-DEVELOPPMENT_MODE = True
-
-# ------- JWT --------
-
-
+# Constants
 CSV_ROOT_PATH = "csv"
 
 
-# ----------------------
-
-from db_webcafe import WebCafeDB, load_inverse_promos
-
-
+# ---------------------- #
 
 # create FastAPI app
+# DEVELOPPMENT_MODE = True
 # if DEVELOPPMENT_MODE:
 #     app = FastAPI(root_path="/api")
 #     app.include_router(app_stats.router)
@@ -43,42 +50,40 @@ from db_webcafe import WebCafeDB, load_inverse_promos
 #         openapi_url=None     # disables OpenAPI JSON schema (/openapi.json)
 #     )
 
+
+# Create FastAPI app here
 app = FastAPI(root_path="/api")
 app.include_router(app_stats.router)
 app.include_router(users.router)
 app.include_router(ics.router)
 
-# enable CORS : 
+# enable CORS : idk what it does but its necessary, ask someone else !
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-
+# WebCafeDB object to handle interactions with database
 db = WebCafeDB()
 
-# generates dynamicaly links for downloading each promotion's ICS file
-
-
-class UserPassword(BaseModel):
-    login: Annotated[str, Query(min_length=1, max_length=20)]
-    hpwd: Annotated[str, Query(max_length=100)]
-
-
-
-
-
-
+# generic endpoints
 @app.get("/")
 async def read_root():
     return {"message":"Welcome to the webcafe server"}
 
+@app.get("/version")
+async def get_version():
+    return {"version":"1.0.0"}
 
 
+# ---- token endpoint, to manage Json Web Tokens (JWT) ---- #
 
+class UserPassword(BaseModel):
+    login: Annotated[str, Query(min_length=1, max_length=20)]
+    hpwd: Annotated[str, Query(max_length=100)]
 
 @app.post("/token")
 async def login(form_data:Annotated[OAuth2PasswordRequestForm, Depends()]):
@@ -99,12 +104,14 @@ async def login(form_data:Annotated[OAuth2PasswordRequestForm, Depends()]):
     else:
         access_token = create_access_token(data={"sub":form_data.username})
         return Token(access_token=access_token, token_type="bearer")
+    
+# --------------------------------------------------------- #
 
-
-@app.post("/rights/set/teacher")
+# change rights to teacher. "Depends(get_current_user)" -> need to be logged in.
+@app.post("/set/teacher")
 async def set_use_teacher(current_user_login : Annotated[str, Depends(get_current_user)], new_teacher_login:str):
     db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
-    user_rights = db.check_superuser(current_user_login)    # seems ok
+    user_rights = db.check_superuser(current_user_login)    # check if logged in user has superuser rights
     db.conn.close()
     if user_rights == 1:    # user is superuser
         db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
@@ -121,7 +128,7 @@ async def set_use_teacher(current_user_login : Annotated[str, Depends(get_curren
 
 
 
-
+# get the list of all classrooms
 @app.get("/classrooms/all")
 async def get_classrooms():
     try:
@@ -131,6 +138,7 @@ async def get_classrooms():
     except:
         return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
+# get a detailled list of all classrooms
 @app.get("/classrooms/all/detail")
 async def get_classrooms_detail():
     try:
@@ -145,23 +153,11 @@ async def get_classrooms_detail():
         return res
     except:
         return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
+
+# get the list of available calendars
 @app.get("/calendars/available")
 async def get_calendars():
     return list(load_inverse_promos())
-
-
-
-
-
-
-
-@app.get("/version")
-async def get_version():
-    return {"version":"1.0.0"}
-
-
-
 
 
 @app.get("/csv")
@@ -268,7 +264,3 @@ def find_allpromos():
 
 
 find_allpromos()
-
-
-# @app.get("/xls/by_promo")
-# async def get_xls_by_promo()

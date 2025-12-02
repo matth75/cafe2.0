@@ -1,4 +1,11 @@
-""" Users management router """
+""" 
+Author: Matthieu Rouet
+Date of creation: 02/12/2025
+
+Documentation:
+User managment router. Handles user creation, modification, getting personnal infos.
+If superuser, you can get a list of all users.
+"""
 
 
 # generic imports

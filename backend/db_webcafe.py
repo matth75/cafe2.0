@@ -1,3 +1,18 @@
+""" 
+Author: Matthieu Rouet
+Date of creation: 09/10/2025
+
+Documentation:
+SQLite "wecafe.db" database handling. Creates and manages read/write operations on the following tables :
+ - users ;
+ - events ;
+ - classroom ;
+ - promo ;
+ - meta.
+
+Detail for each table can be found in the README.txt file.
+"""
+
 import sqlite3
 import json
 from datetime import datetime, timezone, timedelta

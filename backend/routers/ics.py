@@ -1,4 +1,12 @@
-""" ICS management router """
+""" 
+Author: Matthieu Rouet
+Date of creation: 02/12/2025
+
+Documentation:
+ICS management router. All the endpoints for anything related to ics files are there. 
+
+(*) except for the dynamic urls associated to each promotion
+"""
 
 
 # generic imports
@@ -50,7 +58,7 @@ class NewEvent(BaseModel):
     infos_sup: Annotated[str, Query(min_length=2, max_length=50, default="")]
     classroom_str: str
     user_id: int | None = 0
-    promo_id: int | None = 0
+    promo_str: str
 
     @field_validator('*', mode='before')
     def sanitize_strings(cls, v):
@@ -125,6 +133,11 @@ async def insert_event(e: Annotated[NewEvent, Depends()]):
     classroom_id = db.get_classroom_id(e.classroom_str)
     if classroom_id < 0:
         return HTTPException(status_code=status.HTTP_418_IM_A_TEAPOT, detail=f"no classroom in database by the name {e.classroom_str}")
+    
+    promo_id = db.get_promo_id(e.promo_str)
+    if promo_id < 0:
+        return HTTPException(status_code=status.HTTP_418_IM_A_TEAPOT, detail=f"no promo in database by the name {e.promo_str}")
+    
     # convert classroom to id
     res = db.insertEvent(start=e.start,
                          end =e.end,
@@ -133,11 +146,11 @@ async def insert_event(e: Annotated[NewEvent, Depends()]):
                          infos_sup=e.infos_sup,
                          classroom_id=classroom_id,   #type: ignore
                          user_id=e.user_id, #type: ignore
-                         promo_id=e.promo_id    #type: ignore
+                         promo_id=promo_id    #type: ignore
                          )
     db.conn.close()
     if res == -1:
-        return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"event starting at {e.start} for promotion {e.promo_id} already exists")
+        return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"event starting at {e.start} for promotion {promo_id} already exists")
     if res == -2:
         return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
     

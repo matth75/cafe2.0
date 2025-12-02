@@ -1,16 +1,29 @@
+""" 
+Author: Matthieu Rouet
+Date of creation: 02/12/2025
+
+Documentation:
+Utils functions to handle authentification and tokens
+"""
+
+# library imports
 from fastapi import Depends, HTTPException, status
 from typing import Annotated
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordBearer
 from pwdlib import PasswordHash
 import sqlite3
 from pydantic import BaseModel
 from datetime import timedelta, timezone, datetime
 import jwt
+
+# module imports
 from .db_webcafe import WebCafeDB
 
+# Constants
 ACCESS_TOKEN_EXPIRES_MINUTES = 30
 ALGORITHM = "HS256"
 SECRET_KEY = "060d236eebec58d5c66cbab9b9961a7d38414536b5d1c7e3d0286eaa25ff765e"
+
 
 db = WebCafeDB()
 
