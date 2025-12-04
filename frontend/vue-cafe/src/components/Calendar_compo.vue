@@ -30,6 +30,7 @@
     >
         <div class="modal-content">
             <EventAdd
+                :default-promo="activePromoSlug"
                 @close="closeAddEventModal"
                 @create="handleEventCreate"
             />
@@ -109,6 +110,7 @@ const lastLoaded = ref<string | null>(null)
 const icsUrl = ref<string | null>(null)
 let blobUrl: string | null = null
 const isAddModalOpen = ref(false)
+const activePromoSlug = ref<string | null>(null)
 
 
 
@@ -284,6 +286,7 @@ async function loadCalendar() {
         }
         const slugOverride = overridePromo.value
         const slug = slugOverride ?? await fetchPromoSlug()
+        activePromoSlug.value = slug
         emit('calendar-title', slug)
         const data = await getICS(slug)
         //console.log("ICS data fetched for slug:", slug, data)

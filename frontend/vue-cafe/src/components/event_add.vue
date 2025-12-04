@@ -55,23 +55,25 @@
         </select>
       </div>
       <div class="form-row">
-        <label for="add-event-promo">Promo</label>
-        <input
-          id="add-event-promo"
-          v-model="form.promo"
-          type="text"
-          placeholder="Promo concernée"
-          required
+        <PromoSelect
+          v-model="form.promos"
+          :default-value="defaultPromo"
+          :multiple="true"
+          :auto-select-first="false"
+          label="Promos"
+          select-id="add-event-promo"
         />
+        <p v-if="promoSelectionError" class="hint error">
+          {{ promoSelectionError }}
+        </p>
       </div>
       <div class="form-row">
-        <label for="add-event-location">Salle</label>
-        <select id="add-event-location" v-model="form.location">
-          <option value="">Choisir une salle</option>
-          <option v-for="room in classrooms" :key="room" :value="room">
-            {{ room }}
-          </option>
-        </select>
+        <ClassroomSelect
+          v-model="form.location"
+          label="Salle"
+          select-id="add-event-location"
+          :auto-select-first="true"
+        />
       </div>
       <div class="form-row">
         <label for="add-event-description">Description</label>
@@ -96,57 +98,54 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import type { EventDetail } from '@/api'
-import { getClassrooms } from '@/api'
+import PromoSelect from './PromoSelect.vue'
+import ClassroomSelect from './ClassroomSelect.vue'
+
+const props = defineProps<{
+  defaultPromo?: string | string[] | null
+}>()
+
+const defaultPromo = computed(() => props.defaultPromo ?? null)
 
 const emit = defineEmits<{
   (e: 'close'): void
   (e: 'create', payload: EventDetail): void
 }>()
 
-const classrooms = ref<string[]>([])
+const promoSelectionError = ref<string | null>(null)
 
 const form = reactive({
   matiere: '',
   start: '',
   end: '',
   typeCours: 'CM',
-  promo: '',
+  promos: [] as string[],
   enseignant: '',
   description: '',
   location: '',
 })
 
 function handleSubmit() {
-  emit('create', {
-    matiere: form.matiere,
-    start: form.start,
-    end: form.end,
-    type_cours: form.typeCours === 'CM',
-    promo: form.promo,
-    enseignant: form.enseignant,
-    description: form.description,
-    location: form.location,
+  if (!form.promos.length) {
+    promoSelectionError.value = 'Sélectionnez au moins une promo.'
+    return
+  }
+
+  form.promos.forEach((promoSlug) => {
+    emit('create', {
+      matiere: form.matiere,
+      start: form.start,
+      end: form.end,
+      type_cours: form.typeCours === 'CM',
+      promo: promoSlug,
+      enseignant: form.enseignant,
+      description: form.description,
+      location: form.location,
+    })
   })
 }
-
-async function loadClassrooms() {
-  try {
-    const data = await getClassrooms()
-    const rooms = Array.isArray(data) ? data : []
-    classrooms.value = rooms
-      .map((room: any) => room?.name ?? room?.label ?? room)
-      .filter(Boolean)
-  } catch (err) {
-    console.error('Unable to load classrooms', err)
-    classrooms.value = []
-  }
-}
-
-onMounted(() => {
-  loadClassrooms()
-})
 
 watch(() => form.start, (value) => {
   if (!value) {
@@ -159,6 +158,15 @@ watch(() => form.start, (value) => {
   const endDate = new Date(startDate.getTime() + (5.25) *3600 * 1000)
   form.end = endDate.toISOString().slice(0, 16)
 })
+
+watch(
+  () => form.promos.slice(),
+  () => {
+    if (form.promos.length) {
+      promoSelectionError.value = null
+    }
+  },
+)
 </script>
 
 <style scoped>
@@ -196,6 +204,16 @@ watch(() => form.start, (value) => {
   border-radius: 0.5rem;
   border: 1px solid rgba(99, 102, 241, 0.25);
   font-size: 1rem;
+}
+
+.hint {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin: 0;
+}
+
+.hint.error {
+  color: #b91c1c;
 }
 
 .form-actions {

@@ -1,13 +1,23 @@
 <script setup>
-  import { ref } from 'vue';
+  import { ref, watch } from 'vue';
   import AppHeader from './components/Header.vue'
   import Sidebar from './components/Sidebar.vue'
-  import { RouterView } from 'vue-router'
+  import { RouterView, useRoute } from 'vue-router'
 
-  const sideBarOpen = ref(true);  
+  const sideBarOpen = ref(false);
+  const route = useRoute();
+
   const toggleSideBar = () => {
     sideBarOpen.value = !sideBarOpen.value;
   };
+
+  watch(
+    () => route.fullPath,
+    () => {
+      // Close sidebar after each navigation to keep pages unobstructed
+      sideBarOpen.value = false;
+    }
+  );
 </script>
 
 <style>
