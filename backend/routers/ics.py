@@ -215,3 +215,30 @@ async def get_event_ids(event_criteria: Annotated[Event, Depends()]):
             res = db._get_events_on_ids(ids)    # returns events detail for all events  
     db.conn.close()
     return res
+
+@router.get("/modify_event")
+async def modify_event(uid_str: str, e: Annotated[Event, Depends()]):
+    db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+    uid = 0
+    try:
+        uid = int(uid_str.split('@')[0])
+    except:
+        return  HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="uid error")
+    
+    res = db.modifyEvent(start=e.start,
+                         end =e.end,
+                         matiere=e.matiere,
+                         type_cours=e.type_cours,
+                         infos_sup=e.infos_sup,
+                         classroom_id=classroom_id,   #type: ignore
+                         user_id=e.user_id, #type: ignore
+                         promo_id=uid   #type: ignore
+                         )
+    db.conn.close()
+    if res == 0:
+        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"event with unique id:{uid} not found")
+    if res == -2:
+        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
+    if res == -1:
+        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"event unique id:{id} <= 0 not possible or no changes detected")
+    return HTTPException(status_code=status.HTTP_200_OK, detail=f"event with unique id {id} succesfully modified")

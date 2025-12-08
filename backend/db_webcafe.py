@@ -469,7 +469,7 @@ class WebCafeDB:
             return -2  # database error
     
 
-    def isClassroomUsed(self, classroom_name: str, start: datetime, end: datetime) -> bool:
+    def isClassroomUsed(self, classroom_name: str, start: datetime, end: datetime):
         def _norm_dt(val):
             # file-level import: from datetime import datetime
             if isinstance(val, datetime):
