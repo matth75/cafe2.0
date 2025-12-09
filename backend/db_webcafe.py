@@ -268,18 +268,22 @@ class WebCafeDB:
             return -2 # f"Unable to set user '{login}' to teacher"
 
 
+        # helper to normalize datetime values to the DB string format
+    def _norm_dt(self, val):
+        # file-level import: from datetime import datetime
+        if isinstance(val, datetime):
+            # Use same format the rest of the code expects ("YYYY-MM-DD HH:MM")
+            return val.strftime("%Y-%m-%dT%H:%M")
+        return val
+    
+
     def insertEvent(self, start, end, matiere, type_cours, infos_sup:str="", classroom_id:int=0, user_id:int=0, promo_id:int=0):
         """ Add an event to the SQL database. Assume start and end are of datetime.datetime format.
         Assuming for now that classroom ids are given, maybe change this parameter later... """
 
-        def _norm_dt(val):
-            # file-level import: from datetime import datetime
-            if isinstance(val, datetime):
-                return val.strftime("%Y-%m-%dT%H:%M")
-            return val
         
-        norm_start = _norm_dt(start)
-        norm_end = _norm_dt(end)
+        norm_start = _norm_dt(self, start)
+        norm_end = _norm_dt(self, end)
 
         # check if event already exists
         if (self._eventExists(start=norm_start, promo_id=promo_id)==1):
@@ -297,13 +301,7 @@ class WebCafeDB:
             "infos_sup", "classroom_id", "user_id", "promo_id"
         }
 
-        # helper to normalize datetime values to the DB string format
-        def _norm_dt(val):
-            # file-level import: from datetime import datetime
-            if isinstance(val, datetime):
-                # Use same format the rest of the code expects ("YYYY-MM-DD HH:MM")
-                return val.strftime("%Y-%m-%dT%H:%M")
-            return val
+
 
         # Sanitize keys and build query
         filters = []
@@ -496,11 +494,11 @@ class WebCafeDB:
 
     def _eventExists(self, start, promo_id):
         """Postulat : Deux évenements d'une même promo ne peuvent pas avoir le même instant de début de cours. """
-        c = self.conn.cursor()
-        event_info = c.execute("SELECT COUNT(*) FROM events WHERE start = ? AND promo_id = ?", (start, promo_id)).fetchone()[0]
-        c.close()
-
-        return event_info > 0  # True if event exists
+        try:
+            event_info = self.conn.execute("SELECT COUNT(*) FROM events WHERE start = ? AND promo_id = ?", (start, promo_id)).fetchone()[0]
+            return event_info > 0  # True if event exists
+        except:
+            return -2  # database error
         
     
     def generate_ics(self, db_name: str, output_file: str, classroom_id: int = 0,

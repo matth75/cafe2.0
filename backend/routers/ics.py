@@ -55,7 +55,7 @@ class NewEvent(BaseModel):
     end:  datetime
     matiere: Annotated[str, Query(min_length=2, max_length=20)] 
     type_cours: Annotated[str, Query(min_length=2, max_length=20)] 
-    infos_sup: Annotated[str, Query(min_length=2, max_length=50, default="")]
+    infos_sup: Annotated[str, Query(max_length=50, default="")]
     classroom_str: str
     user_id: int | None = 0
     promo_str: str
@@ -217,22 +217,18 @@ async def get_event_ids(event_criteria: Annotated[Event, Depends()]):
     return res
 
 @router.get("/modify_event")
-async def modify_event(uid_str: str, e: Annotated[Event, Depends()]):
+async def modify_event(uid: int, e: Annotated[Event, Depends()]):
     db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
-    uid = 0
-    try:
-        uid = int(uid_str.split('@')[0])
-    except:
-        return  HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="uid error")
+
     
-    res = db.modifyEvent(start=e.start,
-                         end =e.end,
-                         matiere=e.matiere,
-                         type_cours=e.type_cours,
-                         infos_sup=e.infos_sup,
-                         classroom_id=classroom_id,   #type: ignore
-                         user_id=e.user_id, #type: ignore
-                         promo_id=uid   #type: ignore
+    res = db.modifyEvent(uid ,{'start' : e.start,
+                         'end' : e.end,
+                         'matiere': e.matiere,
+                         'type_cours' : e.type_cours,
+                         'infos_sup' : e.infos_sup,
+                         'classroom_id' : e.classroom_id, 
+                         'user_id' : e.user_id, 
+                         'promo_id' : e.promo_id   }
                          )
     db.conn.close()
     if res == 0:

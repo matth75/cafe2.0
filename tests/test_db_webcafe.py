@@ -2,7 +2,7 @@ import os
 import sqlite3
 import pytest
 from backend.db_webcafe import WebCafeDB, convertPromoStrToInt
-
+from datetime import datetime, timedelta
 """
 1 : success
 0 : not found
@@ -203,5 +203,56 @@ def test_set_Teacher(tmp_path):
     res_closed = db.set_Teacher("mike")
     assert res_closed == -2
 
+def test_insertEvent(tmp_path):
+    db = setup_db_file(tmp_path)
+    start_dt = datetime.now()
+    end_dt = start_dt + timedelta(hours=2)
+    res = db.insertEvent(start_dt, end_dt, "ondelette", "cm", classroom_id=1, user_id=1, promo_id=1, infos_sup="Initial Event")
+    assert res == 1
+    # verify event in database
+    cur = db.conn.cursor()
+    row = cur.execute(
+        "SELECT start, end, matiere, type_cours, infos_sup, classroom_id, user_id, promo_id FROM events WHERE promo_id = ?",
+        (1,)
+    ).fetchone()
+    assert row is not None
+    assert row[0] == start_dt.strftime("%Y-%m-%dT%H:%M")
+    assert row[1] == end_dt.strftime("%Y-%m-%dT%H:%M")
+    assert row[2] == "ondelette"
+    assert row[3] == "cm"
+    assert row[4] == "Initial Event"
+    assert row[5] == 1
+    assert row[6] == 1
+    assert row[7] == 1
+    res_existing = db.insertEvent(start_dt, end_dt, "ondelette", "cm", classroom_id=1, user_id=1, promo_id=1, infos_sup="Initial Event")
+    assert res_existing == -1
+    db.conn.close()
+    
+    res_closed = db.insertEvent(start_dt, end_dt, "ondelette", "cm", classroom_id=1, user_id=1, promo_id=1, infos_sup="Initial Event")
+    assert res_closed == -2
 
 
+def test_eventExists(tmp_path):
+    db = setup_db_file(tmp_path)
+    start_dt = datetime.now()
+    end_dt = start_dt + timedelta(hours=2)
+    # insert an event
+    db.insertEvent(start_dt, end_dt, "math", "cm", classroom_id=1, user_id=1, promo_id=1) 
+    # test that event exists with matching start and promo_id
+    norm_start = start_dt.strftime("%Y-%m-%dT%H:%M")
+    res = db._eventExists(norm_start, 1)
+    assert res is True     
+    # test that event doesn't exist with same start but different promo_id
+    res_diff_promo = db._eventExists(norm_start, 2)
+    assert res_diff_promo is False       
+    # test that event doesn't exist with different start time
+    different_start = (start_dt + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M")
+    res_diff_start = db._eventExists(different_start, 1)
+    assert res_diff_start is False    
+    # test with non-existent start and promo_id
+    res_nonexistent = db._eventExists("2099-12-31T23:59", 99)
+    assert res_nonexistent is False     
+    db.conn.close()     
+    # test with closed connection
+    res_closed = db._eventExists(norm_start, 1)
+    assert res_closed == -2

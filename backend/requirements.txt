@@ -6,5 +6,5 @@ pytest
 requests
 pyjwt
 pwdlib[argon2]
-datetime
 icalendar
+pandas
