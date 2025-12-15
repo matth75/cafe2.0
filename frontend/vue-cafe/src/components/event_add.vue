@@ -134,16 +134,17 @@ function handleSubmit() {
   }
 
   form.promos.forEach((promoSlug) => {
-    emit('create', {
+    const payload: EventDetail = {
       matiere: form.matiere,
       start: form.start,
       end: form.end,
-      type_cours: form.typeCours === 'CM',
-      promo: promoSlug,
-      enseignant: form.enseignant,
-      description: form.description,
-      location: form.location,
-    })
+      type_cours: form.typeCours,
+      infos_sup: [form.description, form.enseignant].filter(Boolean).join(' - ') || undefined,
+      classroom_str: form.location || undefined,
+      user_id: 0,
+      promo_str: promoSlug,
+    }
+    emit('create', payload)
   })
 }
 
@@ -171,30 +172,30 @@ watch(
 
 <style scoped>
 .event-details {
-  margin-top: 2rem;
-  padding: 1.5rem;
-  border-radius: 1rem;
+  margin-top: 1.25rem;
+  padding: 1.1rem 1.25rem;
+  border-radius: 0.9rem;
   background: #fff;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
 }
 
 .event-details header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1rem;
+  margin-bottom: 0.75rem;
 }
 
 .event-form {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
+  gap: 0.85rem;
 }
 
 .form-row {
   display: flex;
   flex-direction: column;
-  gap: 0.35rem;
+  gap: 0.3rem;
 }
 
 .form-row input,
@@ -220,5 +221,6 @@ watch(
   display: flex;
   gap: 0.5rem;
   justify-content: flex-end;
+  padding-top: 0.25rem;
 }
 </style>

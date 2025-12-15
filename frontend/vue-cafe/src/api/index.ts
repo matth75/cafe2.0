@@ -151,7 +151,14 @@ export function mapApiUser(u: any): UserProfile {
 // attraper ics pour une promo
 export async function getICS(promo_id:string){
   console.log("Fetching ICS for promo_id:", promo_id);
-  const { data } = await client.get(`/ics/${promo_id}`);
+  const { data } = await client.get(`/ics/${promo_id}`, {
+    // On ajoute un timestamp pour éviter tout cache navigateur/proxy
+    params: { t: Date.now() },
+    headers: {
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      Pragma: 'no-cache',
+    },
+  });
   return data;
 }
 
@@ -160,25 +167,44 @@ export async function deleteEvent(event_id:string){
   return data;
 }
 
-export async function addEventToICS(payload: EventDetail){  
-  const { data } = await client.post(`/ics/insert`, payload);
-  return data;
-}
-
 export interface EventDetail {
   start: string
   end: string
   matiere: string
-  enseignant: string
-  type_cours: boolean
-  location: string
-  promo: string
-  description?: string
+  type_cours: string
+  infos_sup?: string
+  classroom_str?: string
+  user_id?: string | number
+  promo_str?: string
+}
+
+export async function addEventToICS(payload: EventDetail) {
+  const body = new URLSearchParams()
+  body.set('start', payload.start)
+  body.set('end', payload.end)
+  body.set('matiere', payload.matiere)
+  body.set('type_cours', payload.type_cours)
+  if (payload.infos_sup) body.set('infos_sup', payload.infos_sup)
+  if (payload.classroom_str) body.set('classroom_str', payload.classroom_str)
+  if (payload.user_id !== undefined && payload.user_id !== null) {
+    body.set('user_id', String(payload.user_id))
+  }
+  if (payload.promo_str) body.set('promo_str', payload.promo_str)
+
+  const { data } = await client.post(`/ics/insert`, body, {
+    headers: { 'Content-Type': 'application/json' },
+  })
+  return data
 }
 
 
 //import all classroom dispo
 export async function getClassrooms(){  
   const { data } = await client.get(`/classrooms/all`);
+  return data;
+}
+
+export async function getCSV(promo_id:string){
+  const { data } = await client.get(`/csv/?promo_str=${promo_id}`);
   return data;
 }

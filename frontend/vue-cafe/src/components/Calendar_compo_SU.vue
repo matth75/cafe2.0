@@ -3,6 +3,14 @@
 
     <p v-if="error" class="calendar-status error">{{ error }} </p>
 
+    <button
+        v-if="isSuperuser"
+        type="button"
+        class="button primary small"
+        @click="openAddEventModal"
+    >
+        Ajouter un événement
+    </button>
 
     <FullCalendar
         v-if="calendarOptions"
@@ -15,7 +23,33 @@
         Impossible d’afficher le calendrier pour le moment.
     </p>
 
+    <div
+        v-if="isAddModalOpen && isSuperuser"
+        class="modal-overlay"
+        @click.self="closeAddEventModal"
+    >
+        <div class="modal-content">
+            <EventAdd
+                :default-promo="activePromoSlug"
+                @close="closeAddEventModal"
+                @create="handleEventCreate"
+            />
+        </div>
+    </div>
 
+    <EventModif
+        v-if="isConnected && isSuperuser && selectedEvent"
+        :event="selectedEvent"
+        @close="clearSelectedEvent"
+        @deleted="handleEventDeleted"
+        @submit="handleEventSubmit"
+    />
+
+    <!-- <EventPopUp
+        v-else-if="selectedEvent && !isSuperuser && isConnected"
+        :event="selectedEvent"
+        @close="clearSelectedEvent"
+    /> -->
 
     <div class="calendar-actions">
         <button type="button" class="button primary small" :disabled="isLoading" @click="loadCalendar">
@@ -36,7 +70,10 @@ import listPlugin from '@fullcalendar/list'
 import interactionPlugin from '@fullcalendar/interaction'
 import iCalendarPlugin from '@fullcalendar/icalendar'
 import { addEventToICS, getICS, type EventDetail } from '@/api'
-import { isConnected, user, syncConnectionStatus } from '@/utils'
+import EventAdd from './event_add.vue'
+import EventModif from './event_modif.vue'
+//import EventPopUp from './event_pop_up.vue'
+import { isConnected, isSuperuser, user, syncConnectionStatus } from '@/utils'
 
 
 const emit = defineEmits<{

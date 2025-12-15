@@ -1,7 +1,8 @@
 <template>
   <section class="content">
     <header class="major">
-      <h1>Espace Superuser</h1>
+
+     <h1> <RouterLink to="/Superuser">Espace Superuser</RouterLink> </h1>
       <p>Actions réservées aux administrateurs de la plateforme CAFE.</p>
     </header>
 
@@ -18,7 +19,7 @@
       </div>
       <br>
       <h2 style="text-align: left;">Calendrier {{ selectedPromo }}</h2>
-      <Calendar_compo :selectedPromo="selectedPromo" />
+      <Calendar_compo_SU :selectedPromo="selectedPromo" />
    
     </div>
 
@@ -30,7 +31,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import PromoSelect from '@/components/PromoSelect.vue'
-import Calendar_compo from '@/components/Calendar_compo.vue'
+import Calendar_compo_SU from '@/components/Calendar_compo_SU.vue'
+import { getCSV } from '@/api'
+
 
 const selectedPromo = ref('')
 </script>

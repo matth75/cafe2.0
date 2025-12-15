@@ -90,6 +90,10 @@ const status = ref<Status>('idle')
 const statusMessage = ref('')
 const internalValue = ref<string | string[]>(isMultiple.value ? [] : '')
 
+function arraysEqual(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((value, index) => value === b[index])
+}
+
 function toArray(value: string | string[] | null | undefined): string[] {
   if (Array.isArray(value)) {
     return value.map((v) => String(v)).filter(Boolean)
@@ -106,10 +110,17 @@ function setStatus(nextStatus: Status, message = '') {
 
 function syncFromModel(value: string | string[] | null | undefined) {
   if (isMultiple.value) {
-    internalValue.value = toArray(value)
+    const next = toArray(value)
+    const current = Array.isArray(internalValue.value) ? internalValue.value : []
+    if (!arraysEqual(next, current)) {
+      internalValue.value = next
+    }
   } else {
     const casted = Array.isArray(value) ? value[0] : value
-    internalValue.value = casted ? String(casted) : ''
+    const next = casted ? String(casted) : ''
+    if (typeof internalValue.value !== 'string' || internalValue.value !== next) {
+      internalValue.value = next
+    }
   }
 }
 
@@ -142,9 +153,18 @@ const selectedSingle = computed<string>({
 
 watch(internalValue, (value) => {
   if (isMultiple.value) {
-    emit('update:modelValue', Array.isArray(value) ? value : toArray(value))
+    const next = Array.isArray(value) ? value : toArray(value)
+    const current = toArray(props.modelValue)
+    if (arraysEqual(next, current)) {
+      return
+    }
+    emit('update:modelValue', next)
   } else {
-    emit('update:modelValue', typeof value === 'string' ? value : value[0] ?? '')
+    const next = typeof value === 'string' ? value : value[0] ?? ''
+    if (next === (Array.isArray(props.modelValue) ? props.modelValue[0] : props.modelValue ?? '')) {
+      return
+    }
+    emit('update:modelValue', next)
   }
 })
 

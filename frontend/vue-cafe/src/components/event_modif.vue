@@ -105,6 +105,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'close'): void
+  (e: 'deleted'): void
   (e: 'submit', payload: {
     title: string
     start: string
@@ -184,6 +185,7 @@ async function handleDelete() {
 
   try {
     await deleteEvent(current.uid)
+    emit('deleted')
     emit('close')
   } catch (err) {
     console.error('Unable to delete event', err)

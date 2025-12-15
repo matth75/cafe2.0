@@ -12,7 +12,7 @@
       <RouterLink class="button Button_principal" to="/su_cal">Gérer les calendriers</RouterLink>
     </div>
 
-  </section>
+    </section>
 </template>
 
 <script setup lang="ts">
