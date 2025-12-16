@@ -63,7 +63,7 @@ class WebCafeDB:
 
             # create CLASSROOM table
             c.execute('CREATE TABLE IF NOT EXISTS classroom (classroom_id INTEGER PRIMARY KEY AUTOINCREMENT,' \
-            'location CHAR(10), capacity INT, type CHAR(30))')
+            'location CHAR(20) UNIQUE, capacity INT, type CHAR(20))')
 
             # create PROMO table
             c.execute('CREATE TABLE IF NOT EXISTS promo (promo_id INTEGER PRIMARY KEY AUTOINCREMENT,' \
@@ -387,15 +387,14 @@ class WebCafeDB:
         if not name or not isinstance(name, str):
             return -1   # redundant type check
 
-        c = self.conn.cursor()
         try:
-            row = c.execute("SELECT classroom_id FROM classroom WHERE location = ?", (name,)).fetchone()
-        finally:
-            c.close()
+            row = self.conn.execute("SELECT classroom_id FROM classroom WHERE location = ?", (name,)).fetchone()
+        except sqlite3.Error:
+            return -2   # database error
 
         if row is None:
-            return -2   # no classroom match
-        return int(row[0])
+            return -3  # no classroom match
+        return int(row[0])  # return classroom_id 
 
 
     def _get_events_on_ids(self, event_ids: list[int]):
@@ -462,8 +461,31 @@ class WebCafeDB:
         finally:
             c.close()
 
+    def insertClassroom(self, location:str, capacity:int, type:str):
+        """ Insert a new classroom in the database."""
+        # Check if classroom already exists
+        if (self.get_classroom_id(location) > 0):
+            return -1   # classroom already exists : do not insert, name already used
+        try:
+            self.conn.execute("INSERT INTO classroom (location, capacity, type) VALUES(? ,? ,?)", 
+                          (location, capacity, type))
+            self.conn.commit()
+            return 1 #classroom : {location} succesfully created
 
+        except: 
+            return -2    # if False insertion failed
 
+    def deleteClassroom(self, location:str):
+        """ Deletes existing classroom"""
+        # Check if classroom exists
+        if (self.get_classroom_id(location) < 0):
+            return -1   # classroom does not exist or error occured
+        try:
+            self.conn.execute(f"DELETE FROM classroom WHERE location = ?", (location,))
+            self.conn.commit()
+            return 1
+        except:
+            return -2
 
     def _eventExists(self, start, promo_id):
         """Postulat : Deux évenements d'une même promo ne peuvent pas avoir le même instant de début de cours. """

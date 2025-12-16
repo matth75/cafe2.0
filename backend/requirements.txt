@@ -1,10 +1,11 @@
 # List of requiered python packages (and versions if specified) for install.
 # Using a conda/mamba environment is optional, but highly recommended.
-python=3.12
+python
 fastapi
 pytest
 requests
-pyjwt
-pwdlib[argon2]
-datetime
+pyjwt  
 icalendar
+sqlite
+pandas
+openpyxl

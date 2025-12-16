@@ -6,8 +6,17 @@ FastAPI-based backend server for the WebCafe scheduling system, managing users, 
 
 ### Install Dependencies
 
-Python librairies that need to be installed can be found in the `requierements.txt` file. Use the following commands 
-(inside a virtual environment) to install the requiered Python packages.
+#### First
+
+Python librairies that need to be installed can be found in the `requierements.txt` file. First, install these packages with one of the following commands
+
+Using **mamba** (recommended for faster performance):
+```bash
+mamba install -f requirements.txt
+```
+
+> **Note:** [Mamba](https://mamba.readthedocs.io/en/latest/) is a faster drop-in replacement for conda. 
+If you haven't installed it yet, we recommend you check the [installation guide](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html).
 
 Using **pip**:
 ```bash
@@ -19,13 +28,12 @@ Using **conda**:
 conda install -f requirements.txt
 ```
 
-Using **mamba** (recommended for faster performance):
-```bash
-mamba install -f requirements.txt
-```
+#### Then
 
-> **Note:** [Mamba](https://mamba.readthedocs.io/en/latest/) is a faster drop-in replacement for conda. 
-If you haven't installed it yet, we recommend you check the [installation guide](https://mamba.readthedocs.io/en/latest/installation/mamba-installation.html).
+Some packages (with "extras") can only be installed using `pip`. Make sure the python env is active, then, inside this env, run :
+
+```pip install 'pwdlib[argon2]'```
+
 
 ### Run the Server
 

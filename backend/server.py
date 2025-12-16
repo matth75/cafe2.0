@@ -60,7 +60,7 @@ app.include_router(ics.router)
 # enable CORS : idk what it does but its necessary, ask someone else !
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],   # weird config but works somehow
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -50,12 +50,27 @@ class Event(BaseModel):
                 raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail=f"Invalid characters {v}")
         return v
     
+class Classroom(BaseModel):
+    capacity: Annotated[int, Query(gt=0)]   # gt=0 means striclty greater than 0
+    type: Annotated[str, Query(min_length=2, max_length=20)]    # CM, TP, autre...
+    location: Annotated[str, Query(min_length=2, max_length=20)]    # "2Z34"
+
+    @field_validator('*', mode='before')
+    def sanitize_strings(cls, v):
+        # reuse same sanitization rules as User: strip and reject SQL metachars
+        if isinstance(v, str):
+            v = v.strip()
+            if re.search(r"[;'\"\\]", v):
+                raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail=f"Invalid characters {v}")
+        return v
+    
+
 class NewEvent(BaseModel):
     start: datetime 
     end:  datetime
     matiere: Annotated[str, Query(min_length=2, max_length=20)] 
     type_cours: Annotated[str, Query(min_length=2, max_length=20)] 
-    infos_sup: Annotated[str, Query(min_length=2, max_length=50, default="")]
+    infos_sup: Annotated[str, Query(max_length=200, default="")]    # pas obligé de mettre des infos sup !
     classroom_str: str
     user_id: int | None = 0
     promo_str: str
@@ -215,3 +230,33 @@ async def get_event_ids(event_criteria: Annotated[Event, Depends()]):
             res = db._get_events_on_ids(ids)    # returns events detail for all events  
     db.conn.close()
     return res
+
+
+@router.post("/insert_classroom")
+async def insert_classroom(c: Classroom):
+    """ Inserts a new classroom in database. """
+    db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+    res = db.insertClassroom(location= c.location,
+                             capacity=c.capacity,
+                             type=c.type
+                             )
+    db.conn.close()
+    if res == -1:
+        return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"classroom {c.location} already exists")
+    if res == -2:
+        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
+    
+    return HTTPException(status_code=status.HTTP_200_OK, detail=f"classroom {c.location} succesfully added")
+
+@router.post("/delete_classroom")
+async def delete_classroom(location: str):
+    """ Deletes a classroom from database. """
+    db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+    res = db.deleteClassroom(location= location)
+    db.conn.close()
+    if res == -1:
+        return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"classroom {location} does not exist")
+    if res == -2:
+        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
+    
+    return HTTPException(status_code=status.HTTP_200_OK, detail=f"classroom {location} succesfully deleted")
