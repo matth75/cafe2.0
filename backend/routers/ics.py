@@ -219,8 +219,6 @@ async def get_event_ids(event_criteria: Annotated[Event, Depends()]):
 @router.get("/modify_event")
 async def modify_event(uid: int, e: Annotated[Event, Depends()]):
     db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
-
-    
     res = db.modifyEvent(uid ,{'start' : e.start,
                          'end' : e.end,
                          'matiere': e.matiere,

@@ -256,3 +256,38 @@ def test_eventExists(tmp_path):
     # test with closed connection
     res_closed = db._eventExists(norm_start, 1)
     assert res_closed == -2
+
+def test_isClassroomUsed(tmp_path):
+    db = setup_db_file(tmp_path)
+    start_dt = datetime.now()
+    end_dt = start_dt + timedelta(hours=2)
+     
+    # insert an event in classroom "2Z28" (exists by default)
+    db.insertEvent(start_dt, end_dt, "math", "cm", classroom_id=1, user_id=1, promo_id=1)
+        
+    # test classroom is used at exact start time
+    res = db.isClassroomUsed("2Z28", start_dt, end_dt)
+    assert res is True
+      
+    # test classroom is not used at different time
+    different_start = start_dt + timedelta(hours=3)
+    different_end = different_start + timedelta(hours=2)
+    res_unused = db.isClassroomUsed("2Z28", different_start, different_end)
+    assert res_unused is False
+        
+    # test classroom is used with overlapping time range
+    overlap_start = start_dt + timedelta(minutes=30)
+    overlap_end = overlap_start + timedelta(hours=1)
+    res_overlap = db.isClassroomUsed("2Z28", overlap_start, overlap_end)
+    assert res_overlap is True
+        
+    # test non-existent classroom
+    res_nonexistent = db.isClassroomUsed("NonExistent", start_dt, end_dt)
+    assert res_nonexistent == -1
+      
+    db.conn.close()
+       
+    # test with closed connection
+    res_closed = db.isClassroomUsed("2Z28", start_dt, end_dt)
+    assert res_closed == -2
+

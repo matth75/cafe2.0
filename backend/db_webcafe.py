@@ -282,8 +282,8 @@ class WebCafeDB:
         Assuming for now that classroom ids are given, maybe change this parameter later... """
 
         
-        norm_start = _norm_dt(self, start)
-        norm_end = _norm_dt(self, end)
+        norm_start = self._norm_dt(start)
+        norm_end = self._norm_dt(end)
 
         # check if event already exists
         if (self._eventExists(start=norm_start, promo_id=promo_id)==1):
@@ -318,13 +318,13 @@ class WebCafeDB:
                     # empty IN -> no results
                     return -1 if single else []
                 # normalize any datetime items
-                vals = [_norm_dt(v) for v in vals]
+                vals = [self._norm_dt(v) for v in vals]
                 placeholders = ", ".join(["?"] * len(vals))
                 filters.append(f"{key} IN ({placeholders})")
                 params.extend(vals)
             else:
                 # normalize datetime scalar for start/end (or any datetime passed)
-                value = _norm_dt(value)
+                value = self._norm_dt(value)
                 filters.append(f"{key} = ?")
                 params.append(value)
 
@@ -455,6 +455,8 @@ class WebCafeDB:
 
         try:
             for key, value in new_infos.items():
+                if key == "start" or key == "end":
+                    value = self._norm_dt(value)
                 query = f"UPDATE events SET {key} = ? WHERE event_id = ?"
                 self.conn.execute(query, (value, event_id))
             self.conn.commit()
@@ -468,11 +470,6 @@ class WebCafeDB:
     
 
     def isClassroomUsed(self, classroom_name: str, start: datetime, end: datetime):
-        def _norm_dt(val):
-            # file-level import: from datetime import datetime
-            if isinstance(val, datetime):
-                return val.strftime("%Y-%m-%dT%H:%M")
-            return val
 
         """ Check if a classroom is used in any event. """
         classroom_id = self.get_classroom_id(classroom_name)
@@ -484,7 +481,7 @@ class WebCafeDB:
                 # check for time overlap
                 event_info = self.conn.execute(
                     "SELECT COUNT(*) FROM events WHERE classroom_id = ? AND (start > ? AND start < ? OR end > ? AND end < ? OR start < ? AND end > ?)",
-                    (classroom_id, _norm_dt(start), _norm_dt(end), _norm_dt(start), _norm_dt(end), _norm_dt(start), _norm_dt(end)),
+                    (classroom_id, self._norm_dt(start), self._norm_dt(end), self._norm_dt(start), self._norm_dt(end), self._norm_dt(start), self._norm_dt(end)),
                 ).fetchone()[0]
                 return event_info > 0  # True if classroom is used
             else:
