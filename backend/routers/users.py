@@ -111,3 +111,60 @@ async def get_allUsers(current_user_login : Annotated[str, Depends(get_current_u
     else:
         return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"user {current_user_login} is not superuser")
     
+
+# change rights to teacher. "Depends(get_current_user)" -> need to be logged in.
+@router.post("/set/teacher")
+async def set_teacher_rights(current_user_login : Annotated[str, Depends(get_current_user)], teacher_login:str):
+    db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+    user_rights = db.check_superuser(current_user_login)    # check if logged in user has superuser rights
+    db.conn.close()
+    if user_rights == 1:    # user is superuser
+        db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+        res = db.set_teacher(teacher_login)
+        db.conn.close()
+        if res == 1:
+            return HTTPException(status_code=status.HTTP_200_OK, detail=f"User {teacher_login} succesfully updated rights to teacher")
+        else:
+            return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"could not modify user {teacher_login}")
+    elif user_rights == -1:
+        raise HTTPException (status_code=status.HTTP_401_UNAUTHORIZED, detail=f"user {current_user_login} is not superuser")
+    else:
+        raise HTTPException (status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="could not reach database")
+
+
+@router.post("/remove/teacher")
+async def remove_teacher_rights(current_user_login : Annotated[str, Depends(get_current_user)], teacher_login:str):
+    db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+    user_rights = db.check_superuser(current_user_login)    # check if logged in user has superuser rights
+    db.conn.close()
+    if user_rights == 1:    # user is superuser
+        db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+        res = db.remove_teacher(teacher_login)
+        db.conn.close()
+        if res == 1:
+            return HTTPException(status_code=status.HTTP_200_OK, detail=f"User {teacher_login} succesfully removed teacher rights")
+        else:
+            return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"could not modify user {teacher_login}")
+    elif user_rights == -1:
+        raise HTTPException (status_code=status.HTTP_401_UNAUTHORIZED, detail=f"user {current_user_login} is not superuser")
+    else:
+        raise HTTPException (status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="could not reach database")
+
+@router.post("/delete")
+async def delete_user(user_login:str, su_login:Annotated[str, Depends(get_current_user)]):
+    db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+    user_rights = db.check_superuser(su_login)    # check if logged in user has superuser rights
+    db.conn.close()
+    if user_rights == 1:    # user is superuser
+        db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+        res = db.remove_user(user_login)
+        db.conn.close()
+        if res == 1:
+            return HTTPException(status_code=status.HTTP_200_OK, detail=f"User {user_login} succesfully deleted")
+        else:
+            return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"could not delete user {user_login}")
+    elif user_rights == -1:
+        raise HTTPException (status_code=status.HTTP_401_UNAUTHORIZED, detail=f"user {user_login} is not superuser")
+    else:
+        raise HTTPException (status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="could not reach database")
+    

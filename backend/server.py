@@ -72,6 +72,7 @@ db = WebCafeDB()
 # generic endpoints
 @app.get("/")
 async def read_root():
+    find_allpromos()    # create new urls if necessary
     return {"message":"Welcome to the webcafe server"}
 
 @app.get("/version")
@@ -106,26 +107,6 @@ async def login(form_data:Annotated[OAuth2PasswordRequestForm, Depends()]):
         return Token(access_token=access_token, token_type="bearer")
     
 # --------------------------------------------------------- #
-
-# change rights to teacher. "Depends(get_current_user)" -> need to be logged in.
-@app.post("/set/teacher")
-async def set_use_teacher(current_user_login : Annotated[str, Depends(get_current_user)], new_teacher_login:str):
-    db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
-    user_rights = db.check_superuser(current_user_login)    # check if logged in user has superuser rights
-    db.conn.close()
-    if user_rights == 1:    # user is superuser
-        db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
-        res = db.set_Teacher(new_teacher_login)
-        db.conn.close()
-        if res == 1:
-            return HTTPException(status_code=status.HTTP_200_OK, detail=f"User {new_teacher_login} succesfully updated rights to teacher")
-        else:
-            return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"could not modify user {new_teacher_login}")
-    elif user_rights == -1:
-        raise HTTPException (status_code=status.HTTP_401_UNAUTHORIZED, detail=f"user {current_user_login} is not superuser")
-    else:
-        raise HTTPException (status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="could not reach database")
-
 
 
 # get the list of all classrooms

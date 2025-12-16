@@ -21,7 +21,7 @@ import json, os, fcntl, re
 
 # backend module imports
 from ..db_webcafe import WebCafeDB
-from ..dependancies import get_password_hash, get_current_user
+from ..dependancies import get_password_hash, get_current_user, elevated_rights
 
 
 router = APIRouter(prefix="/ics", tags=["ics"])
@@ -141,14 +141,17 @@ async def return_all_events():
                 
 
 @router.post("/insert")
-async def insert_event(e: Annotated[NewEvent, Depends()]):
+async def insert_event(e:NewEvent, current_user:Annotated[str, Depends(get_current_user)]):
     """ Adds an event to database. """
-    db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+    if not elevated_rights(current_user):
+        return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You don't have teacher or superuser rights")
 
+    db.conn = sqlite3.connect(db.dbname)
     classroom_id = db.get_classroom_id(e.classroom_str)
-    if classroom_id < 0:
+    if classroom_id == -3:
         return HTTPException(status_code=status.HTTP_418_IM_A_TEAPOT, detail=f"no classroom in database by the name {e.classroom_str}")
-    
+    if classroom_id == -2:
+        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"database error for classrooms")
     promo_id = db.get_promo_id(e.promo_str)
     if promo_id < 0:
         return HTTPException(status_code=status.HTTP_418_IM_A_TEAPOT, detail=f"no promo in database by the name {e.promo_str}")
@@ -172,8 +175,10 @@ async def insert_event(e: Annotated[NewEvent, Depends()]):
     return HTTPException(status_code=status.HTTP_200_OK, detail=f"event succesfully added")
 
 @router.get("/delete")
-async def delete_event(uid_str:str):
+async def delete_event(uid_str:str, current_user:Annotated[str, Depends(get_current_user)]):
     """ Deletes an event from database using its unique id"""
+    if not elevated_rights(current_user):
+        return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You don't have teacher or superuser rights")
     db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
     uid = 0
     try:
@@ -233,8 +238,11 @@ async def get_event_ids(event_criteria: Annotated[Event, Depends()]):
 
 
 @router.post("/insert_classroom")
-async def insert_classroom(c: Classroom):
+async def insert_classroom(c: Classroom, current_user:Annotated[str, Depends(get_current_user)]):
     """ Inserts a new classroom in database. """
+    if not elevated_rights(current_user):
+        return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You don't have teacher or superuser rights")
+    
     db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
     res = db.insertClassroom(location= c.location,
                              capacity=c.capacity,
@@ -249,8 +257,11 @@ async def insert_classroom(c: Classroom):
     return HTTPException(status_code=status.HTTP_200_OK, detail=f"classroom {c.location} succesfully added")
 
 @router.post("/delete_classroom")
-async def delete_classroom(location: str):
+async def delete_classroom(location: str, current_user:Annotated[str, Depends(get_current_user)]):
     """ Deletes a classroom from database. """
+    if not elevated_rights(current_user):
+        return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You don't have teacher or superuser rights")
+
     db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
     res = db.deleteClassroom(location= location)
     db.conn.close()
@@ -260,3 +271,15 @@ async def delete_classroom(location: str):
         return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
     
     return HTTPException(status_code=status.HTTP_200_OK, detail=f"classroom {location} succesfully deleted")
+
+@router.get("/url_list")
+async def get_url_list():
+    ics_url = "https://cafe.zpq.ens-paris-saclay.fr/api/ics"
+
+    db.conn = sqlite3.connect(db.dbname)
+    list = db.conn.execute("SELECT promo_name FROM promo").fetchall()
+    urls = []
+    for p in list:
+        p_undescore = "_".join(p[0].split())
+        urls.append(f"{ics_url}/{p_undescore}")
+    return urls     

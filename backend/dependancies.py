@@ -83,3 +83,10 @@ async def get_current_user(token: Annotated[str, Depends(oauth2scheme)]):
     except jwt.InvalidTokenError:
         raise credentials_exception
     return login
+
+def elevated_rights(user):
+    db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+    su_rights = db.check_superuser(user) 
+    teacher_rights = db.check_teacher(user)
+    db.conn.close()
+    return (su_rights == 1) or (teacher_rights == 1)

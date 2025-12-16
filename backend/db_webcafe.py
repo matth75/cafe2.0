@@ -266,8 +266,22 @@ class WebCafeDB:
             
         except Exception:
             return -2       # Could not connect to db
-
-    def set_Teacher(self, login):
+        
+    def check_teacher(self, login):
+        if (self._userExists(login)==0):
+            return 0   # user does not exist
+        try:
+            c = self.conn.cursor()
+            su_rights = c.execute("SELECT teacher FROM users WHERE login = ?", (login,)).fetchone()
+            c.close()
+            if su_rights[0] == 1:
+                return 1 # user is superuser
+            return -1    # user is not superuser
+            
+        except Exception:
+            return -2       # Could not connect to db
+        
+    def set_teacher(self, login):
         if (self._userExists(login)==0):
             return 0   # user does not exist
         try :
@@ -278,6 +292,30 @@ class WebCafeDB:
             return 1  # {f"User {login} succesfully set to teacher"   # change to number and to HTTP code result in server.py
         except Exception:
             return -2 # f"Unable to set user '{login}' to teacher"
+        
+    def remove_teacher(self, login):
+        if (self._userExists(login)==0):
+            return 0   # user does not exist
+        try :
+            c = self.conn.cursor()
+            c.execute("UPDATE users SET teacher = 0 WHERE login = ?", (login,))
+            self.conn.commit()
+            c.close()
+            return 1  #  # removed rights
+        except Exception:
+            return -2 # error
+        
+    def remove_user(self, login):
+        if (self._userExists(login)==0):
+            return 0   # user does not exist
+        try :
+            c = self.conn.cursor()
+            c.execute("DELETE FROM users WHERE login = ?", (login,))
+            self.conn.commit()
+            c.close()
+            return 1  #  # removed rights
+        except Exception:
+            return -2 # error 
 
 
     def insertEvent(self, start, end, matiere, type_cours, infos_sup:str="", classroom_id:int=0, user_id:int=0, promo_id:int=0):
@@ -384,9 +422,6 @@ class WebCafeDB:
         Return the classroom_id for a given classroom location/name.
         Raises ValueError if the classroom name is not found or name is empty.
         """
-        if not name or not isinstance(name, str):
-            return -1   # redundant type check
-
         try:
             row = self.conn.execute("SELECT classroom_id FROM classroom WHERE location = ?", (name,)).fetchone()
         except sqlite3.Error:
