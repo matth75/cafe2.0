@@ -10,6 +10,8 @@
       <RouterLink class="button Button_principal" to="/su_people">Gérer les utilisateurs</RouterLink>
       &nbsp; &nbsp; &nbsp;
       <RouterLink class="button Button_principal" to="/su_cal">Gérer les calendriers</RouterLink>
+      &nbsp; &nbsp; &nbsp;
+      <RouterLink class="button Button_principal" to="/su_room">Gérer les salles</RouterLink>
     </div>
 
     </section>

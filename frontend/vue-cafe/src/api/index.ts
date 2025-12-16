@@ -205,6 +205,12 @@ export async function getClassrooms(){
 }
 
 export async function getCSV(promo_id:string){
-  const { data } = await client.get(`/csv/?promo_str=${promo_id}`);
+  const { data } = await client.get(`/csv/?promo_str=${promo_id}`, {
+    responseType: 'blob',
+    headers: {
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      Pragma: 'no-cache',
+    },
+  });
   return data;
 }

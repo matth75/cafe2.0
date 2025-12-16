@@ -45,6 +45,12 @@ const router = createRouter({
     meta: { requiresSuperuser: true },
   },
   {
+    path: '/su_room',
+    name: 'su_room',
+    component: () => import('@/views/Su_room.vue'),
+    meta: { requiresSuperuser: true },
+  },
+  {
     path: '/stage',
     name: 'stage',
     component: () => import('@/views/Stage.vue'),
