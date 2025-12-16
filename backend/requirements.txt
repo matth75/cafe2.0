@@ -1,5 +1,11 @@
-python=3.12
+# List of requiered python packages (and versions if specified) for install.
+# Using a conda/mamba environment is optional, but highly recommended.
+python
 fastapi
 pytest
 requests
-sqlite3 
+pyjwt  
+icalendar
+sqlite
+pandas
+openpyxl

@@ -1,3 +1,12 @@
 .vscode
 __pycache__
 *.db
+*.ods
+*.ods#
+*.xls
+backend/csv
+backend/ics
+backend/~$all_events.xlsx
+*.DS_Store
+ics
+csv

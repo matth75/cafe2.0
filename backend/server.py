@@ -1,161 +1,100 @@
+""" 
+Author: Matthieu Rouet
+Date of creation: 09/10/2025
+
+Documentation:
+Main file. The FastAPI app is created here. Some endpoints are needed in this file, and some are here as default location?
+All other endpoints are imported here as routers objects, from the routers folder. They are sorted according to their purposes :
+ - /users  : user management (login, modification, personnal infos...) ;
+ - /ics    : handling ics files (download, adding/removing events) ;
+ - /status : test router.   
+
+Dependancies for the app (raw functions, not endpoints) are stored in the dependancies.py file.
+"""
+
+# library imports
 from typing import Annotated
-from pydantic import BaseModel, field_validator, EmailStr
-from fastapi import FastAPI, Depends, HTTPException, Query, status
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+from fastapi.security import OAuth2PasswordRequestForm
+from pydantic import BaseModel
+from fastapi import FastAPI, Depends, HTTPException, Query, status, Request
 import sqlite3
-import jwt
-from jwt.exceptions import InvalidTokenError
-from datetime import datetime, timedelta, timezone
-from pwdlib import PasswordHash
+from datetime import timezone, datetime
 from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
+import re
+import os
+import fcntl
+import json
 
-# ------- JWT --------
-ACCESS_TOKEN_EXPIRES_MINUTES = 30
-ALGORITHM = "HS256"
-SECRET_KEY = "060d236eebec58d5c66cbab9b9961a7d38414536b5d1c7e3d0286eaa25ff765e"
+# module imports
+from .routers import app_stats, users, ics
+from .dependancies import *
+from .db_webcafe import WebCafeDB, load_inverse_promos
 
-pwd_hash = PasswordHash.recommended()
-
-class Token(BaseModel):
-    access_token:str
-    token_type:str
-
-def create_access_token(data:dict, expires_delta:timedelta | None = None):
-    to_encode = data.copy()
-    if expires_delta:
-        expire = datetime.now(timezone.utc) + expires_delta
-    else:
-        expire = datetime.now(timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRES_MINUTES)
-    to_encode.update({"exp":expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
-    return encoded_jwt   
-
-# ----------------------
-
-# custom imports : 'if' statement needed for unit tests
-if __name__ == '__main__' or __name__=="server":
-    from db_webcafe import WebCafeDB
-else:
-    from backend.db_webcafe import WebCafeDB
+# Constants
+CSV_ROOT_PATH = "csv"
 
 
-oauth2scheme = OAuth2PasswordBearer(tokenUrl="token")   # url which it defaults to to lend JWT
+# ---------------------- #
 
 # create FastAPI app
-app = FastAPI()
+# DEVELOPPMENT_MODE = True
+# if DEVELOPPMENT_MODE:
+#     app = FastAPI(root_path="/api")
+#     app.include_router(app_stats.router)
+
+# else:
+#     app = FastAPI(
+#         docs_url=None,       # disables Swagger UI (/docs)
+#         redoc_url=None,      # disables ReDoc (/redoc)
+#         openapi_url=None     # disables OpenAPI JSON schema (/openapi.json)
+#     )
 
 
-# enable CORS : 
+# Create FastAPI app here
+app = FastAPI(root_path="/api")
+app.include_router(app_stats.router)
+app.include_router(users.router)
+app.include_router(ics.router)
+
+# enable CORS : idk what it does but its necessary, ask someone else !
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],   # weird config but works somehow
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-
+# WebCafeDB object to handle interactions with database
 db = WebCafeDB()
 
-# define a request model for sending data (POST)
-class User(BaseModel):
-    login: Annotated[str, Query(min_length=1, max_length=20)]
-    email:Annotated[EmailStr, Query(max_length=50)]
-    nom:Annotated[str, Query(max_length=30)]
-    prenom:Annotated[str, Query(max_length=30)]
-    hpwd:Annotated[str, Query(max_length=100)]
-    # birthdate
-    superuser:bool | None = False
-    owner:bool | None = False
-    noteKfet:Annotated[str, Query(default="NoteDefault", max_length=30)]
-    
+# generic endpoints
+@app.get("/")
+async def read_root():
+    find_allpromos()    # create new urls if necessary
+    return {"message":"Welcome to the webcafe server"}
+
+@app.get("/version")
+async def get_version():
+    return {"version":"1.0.0"}
+
+
+# ---- token endpoint, to manage Json Web Tokens (JWT) ---- #
 
 class UserPassword(BaseModel):
     login: Annotated[str, Query(min_length=1, max_length=20)]
     hpwd: Annotated[str, Query(max_length=100)]
-
-class Event(BaseModel):
-    pass
-
-class Calendar(BaseModel):
-    pass
-
-
-@app.post("/users/create", status_code=status.HTTP_201_CREATED)
-async def create_user(user:User):
-    """automaticaly parses User, if format ok, then adds user in db if possible"""
-    # try 10 times with wait if SQL base already used ?
-    db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
-    res = db.insertUser(user.login, user.nom, user.prenom, user.hpwd, user.email,
-                   superuser=user.superuser, owner=user.owner, noteKfet=user.noteKfet)
-    db.conn.close()
-    if res == -1:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already exists")
-    if res == -2:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Database unreacheable")
-    return {"message":"User succesfully created", "login":str(user.login)}
-
-@app.post("/users/login")
-async def check_user(u_pwd:UserPassword):
-    try:
-        db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
-        res = db.userCheckPassword(u_pwd.login, u_pwd.hpwd)
-        db.conn.close()
-        if res == -1 or res == -2:  
-            raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-        # if res == -2:
-        #     return "user does not exist"
-        else:
-            access_token = create_access_token(data={"sub":u_pwd.login})
-        return Token(access_token=access_token, token_type='bearer') 
-    except:
-        return "could not acces database"
-
-
-# ------- ICS management -------
-class JsonCalendar():
-    pass
-
-# ---------Login management ---------
-
-# def check_pwd(plain_pwd, hashed_pwd):
-#     return pwd_hash.verify(plain_pwd, hashed_pwd)
-
-# def get_pwd_hash(plain_pwd):
-#     return pwd_hash.hash(plain_pwd)
-
-class Token(BaseModel):
-    access_token:str
-    token_type:str
-
-def authenticate_user(username, pwd):
-    hpwd = pwd_hash.hash(pwd)
-    try:
-        db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
-        res = db.userCheckPassword(username, hpwd)
-        db.conn.close()
-        if res == 0:
-            return True   
-    except:
-        return False
-
 
 @app.post("/token")
 async def login(form_data:Annotated[OAuth2PasswordRequestForm, Depends()]):
     # login = form_data.username
     # hpwd = form_data.password
     try:
-        db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
-        res = db.userCheckPassword(form_data.username, form_data.password)
-        db.conn.close()
+        auth_bool = authenticate_user(form_data.username, form_data.password)
     except:
         "db innaccessible"
-    if res == -1 or res == -2:  
+    if not auth_bool:  
         raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Incorrect username or password",
@@ -166,50 +105,143 @@ async def login(form_data:Annotated[OAuth2PasswordRequestForm, Depends()]):
     else:
         access_token = create_access_token(data={"sub":form_data.username})
         return Token(access_token=access_token, token_type="bearer")
+    
+# --------------------------------------------------------- #
 
 
-
-
-async def get_current_user(token: Annotated[str, Depends(oauth2scheme)]):
-    # login = decode_token(token)
-    # return login ()
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Incorrect username or password",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
+# get the list of all classrooms
+@app.get("/classrooms/all")
+async def get_classrooms():
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        login = payload.get("sub")
-        if login is None:
-            raise credentials_exception
-    except jwt.ExpiredSignatureError: 
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="JWT has expired")
-    except jwt.InvalidTokenError:
-        raise credentials_exception
-    return login
+        conn = sqlite3.connect(db.dbname, check_same_thread=False)
+        rows = conn.execute("SELECT location FROM classroom").fetchall()
+        return [r[0] for r in rows]
+    except:
+        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+# get a detailled list of all classrooms
+@app.get("/classrooms/all/detail")
+async def get_classrooms_detail():
+    try:
+        conn = sqlite3.connect(db.dbname, check_same_thread=False)
+        table_info = conn.execute("PRAGMA table_info(classroom)").fetchall()
+        column_names = [t[1] for t in table_info]
+        print(column_names)
+        res = {}
+        rows = conn.execute("SELECT * FROM classroom").fetchall()
+        for r in rows:
+            res[r[0]] = dict(zip(column_names[1:], r[1:]))
+        return res
+    except:
+        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+# get the list of available calendars
+@app.get("/calendars/available")
+async def get_calendars():
+    return list(load_inverse_promos())
 
 
-dummyICS = ["icsM1", "icsM2"]
-list_authorized_M1 = ["mylogin", "hello4"]
+@app.get("/csv")
+async def get_csv_by_promo(promo_str:str):
+    # remove whitespaces and replace them with underscores for file creation
+    promo_str_path= promo_str
+    promo_str_path = "_".join(promo_str_path.split())
 
-@app.get("/users/me")
-async def get_my_info(current_user_login : Annotated[str, Depends(get_current_user)]):
+    # validate promo_str contains only alphanumeric chars
+    if not re.fullmatch(r'[A-Za-z0-9_]+', promo_str_path):
+        return HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail=f"Invalid promotion name: {promo_str}")
+
     db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
-    user_info = db.get_user(current_user_login)
-    return user_info
+    # get promo id
+    promo_id = db.get_promo_id(promo_str)
+    if promo_id < 0:
+        return HTTPException(status_code=status.HTTP_418_IM_A_TEAPOT, detail=f"no promotion in database by the name {promo_str}")
+    
 
-@app.get("/ics/M2")
-async def post_calendar(current_login : Annotated[str, Depends(get_current_user)]): 
-    if (current_login in list_authorized_M1):
-        return dummyICS[1]
-    return "Access denied / not on the list"
+    if not os.path.isdir(CSV_ROOT_PATH):  # folder does not exist
+        try:
+            os.mkdir(CSV_ROOT_PATH)
+        except:
+            return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"error while managing folders")
+
+    # full path         
+    csv_path = f"{CSV_ROOT_PATH}/{promo_str_path}.csv"
+
+    res = db.generate_csv(promo_id, csv_path)
+    db.conn.close()
+    if res == -2:
+        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
+    
+    return FileResponse(csv_path, filename=f"{promo_str_path}.csv", media_type="text/ics")
 
 
-@app.get("/")
-async def read_root():
-    return {"Welcome to the webcafe server"}
 
-@app.get("/ics/testICS")
-async def return_test_ics():
-    return FileResponse("../ics/test.ics", filename="test.ics", media_type="text/ics")
+# Create url endpoints for each promotion in SQL table promos. 
+# Functions test if a modification was made to the SQL table "events" by compararing the version stored in
+# "all.ics.meta" file and the version number in the "meta" SQL table. If they are different, or the ics file we are supposed
+# to generate is missing from filesystem, the function then (re)generates the ics file. 
+# The async endpoint then returns the file if everything worked correctly and throws errors if something went wrong.
+
+# NB : PAS RÉUSSI À METTRE ÇA DANS ICS.PY, OUPSI
+
+def create_dynamic_ics_endpoint(promo_id, promo_name: str):
+    async def endpoint(request: Request):
+        """ Endpoint for downloading ics"""
+        ics_name = f"dynamic_{promo_name}.ics"
+        meta_sidecar = f"{ics.ICS_ROOT_PATH}/all.ics.meta"
+        # check if version has changed, i.e. modifications inside SQL db
+        db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+        try:
+            row = db.conn.execute("SELECT version FROM meta WHERE key='events'").fetchone()
+            db_version = row[0] if row else 0
+        finally:
+            db.conn.close()
+
+        cached_version = None
+        if os.path.exists(meta_sidecar):
+            with open(meta_sidecar, 'r') as mf:
+                obj = json.load(mf)
+                cached_version = obj.get("version")
+
+        if not os.path.isdir(ics.ICS_ROOT_PATH):
+            try:
+                os.mkdir(ics.ICS_ROOT_PATH)
+            except:
+                return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"error while managing folders")
+
+        # full path
+        ics_path = f"{ics.ICS_ROOT_PATH}/{ics_name}"
+
+        # check if file doesnt exists or as been modifed
+        if not os.path.exists(ics_path) or cached_version != db_version:
+            lock_path = ics_path + ".lock"  # avoid race conditions while accessing the file
+            with open(lock_path, "w") as lockf:
+                try:
+                    fcntl.flock(lockf, fcntl.LOCK_EX)
+                    res = db.generate_ics(db.dbname, ics_path, promo_id=promo_id)
+                    if res == -2:
+                        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="could not query database")
+                    if res == -1:
+                        return HTTPException(status_code=status.HTTP_412_PRECONDITION_FAILED, detail="no events found for the given filters")
+                    if res == -3:
+                        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="could not save ics.file")
+                    with open(meta_sidecar, "w") as mf:
+                        json.dump({"version": db_version, "generated_at": str(datetime.now(timezone.utc))}, mf)
+                finally:
+                    fcntl.flock(lockf, fcntl.LOCK_UN)
+        return FileResponse(ics_path, filename=f"{promo_name}.ics", media_type="text/ics", status_code=status.HTTP_200_OK)
+    return endpoint
+
+def find_allpromos():
+    db.conn = sqlite3.connect(db.dbname)
+    calendars = db.conn.execute("SELECT promo_id, promo_name FROM promo").fetchall()
+    calendars_underscores = []
+
+    for c in calendars:
+        calendars_underscores.append([c[0], "_".join(c[1].split())])
+
+    for c in calendars_underscores:
+        app.add_api_route(f"/ics/{c[1]}", create_dynamic_ics_endpoint(c[0], c[1]), methods=["GET"], tags=["ics"])
+
+
+find_allpromos()
