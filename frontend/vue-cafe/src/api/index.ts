@@ -215,12 +215,55 @@ export async function getCSV(promo_id:string){
   return data;
 }
 
-export async function setTeacher(token:string, user_id:string){
+export async function setTeacher(token: string, user_id: string) {
   const headers = token
     ? { Authorization: `Bearer ${token}` }
     : undefined;
-  
-  const { data } = await client.get(`users/set/teacher?new_teacher_login=${user_id}`, { headers });
+
+  const { data } = await client.post(
+    `users/set/teacher`,
+    null, 
+    {
+      params: { teacher_login: user_id },
+      headers,
+    }
+  );
+
   return data;
 }
+
+export async function unsetTeacher(token: string, user_id: string) {
+  const headers = token
+    ? { Authorization: `Bearer ${token}` }
+    : undefined;
+
+  const { data } = await client.post(
+    `users/remove/teacher`,
+    null, 
+    {
+      params: { teacher_login: user_id },
+      headers,
+    }
+  );
+
+  return data;
+}
+
+export async function removeUser(token: string, user_id: string) {
+  const headers = token
+    ? { Authorization: `Bearer ${token}` }
+    : undefined;
+
+  const { data } = await client.post(
+    `users/delete`,
+    null, 
+    {
+      params: { user_login: user_id },
+      headers,
+    }
+  );
+
+  return data;
+}
+
 

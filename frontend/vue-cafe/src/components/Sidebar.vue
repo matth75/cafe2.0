@@ -17,9 +17,8 @@
         </li>
 
         <li v-if="isConnected"><RouterLink to="/calendar">Calendrier</RouterLink></li>
-        <li><RouterLink to="/kawa">Machine à Café</RouterLink></li>
-        <li><RouterLink to="/contact">Contact</RouterLink></li>
-        <li><RouterLink to="/stage">Stage</RouterLink></li>
+        <li v-if="isConnected"><RouterLink to="/kawa">Machine à Café</RouterLink></li>
+        <li v-if="isConnected"><RouterLink to="/stage">Stage</RouterLink></li>
         <li v-if="isSuperuser && isConnected">
           <RouterLink to="/superuser">Espace Superuser</RouterLink>
         </li>
@@ -29,16 +28,13 @@
     <!-- Section Contact -->
     <section>
       <header class="major">
-        <h2>Contact</h2>
+        <h2> <RouterLink to="/contact">Contact</RouterLink></h2>
       </header>
       <p>
         Tu veux demander à Thomas Rodet de nous mettre 20/20 en Génie Logiciel ?<br />
-        => envoie nous un mail
+        => envoie nous un <RouterLink to="/contact">mail</RouterLink>
       </p>
       <ul class="contact">
-        <li class="icon solid fa-envelope">
-          <a href="mailto:contact@sien-ens.fr">contact@domaine-cafe.fr à setup</a>
-        </li>
         <li class="icon solid fa-home">ENS Paris-Saclay – DER SIEN - M2FESup Intranet</li>
       </ul>
     </section>

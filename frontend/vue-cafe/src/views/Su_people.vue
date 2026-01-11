@@ -4,22 +4,21 @@
     <h1>Espace Superuser </h1>
   </header>
 
-  <div class="role-buttons panel">
-    <button
-      v-for="role in roles"
-      :key="role.value"
-      class="button"
-      :class="{ active: selectedRole === role.value }"
-      type="button"
-      @click="selectedRole = role.value"
-    >
-      {{ role.label }}
-    </button>
-  </div>
+  <div class="role-grid">
+    <div class="role-panel">
+      <h2 class="role-title">Professeurs</h2>
+      <UserRoleList role="prof" :refresh-key="refreshKey" @refresh="refreshAll" />
+    </div>
 
-  <div class="list-wrapper">
-    <p v-if="!selectedRole" class="hint">Choisissez un rôle pour voir la liste.</p>
-    <UserRoleList v-else :role="selectedRole" />
+    <div class="role-panel">
+      <h2 class="role-title">Élèves</h2>
+      <UserRoleList role="eleve" :refresh-key="refreshKey" @refresh="refreshAll" />
+    </div>
+
+    <div class="role-panel role-panel-wide">
+      <h2 class="role-title">Superusers</h2>
+      <UserRoleList role="superuser" :refresh-key="refreshKey" @refresh="refreshAll" />
+    </div>
   </div>
 </section>
 </template>
@@ -28,39 +27,22 @@
 import { ref } from 'vue'
 import UserRoleList from '@/components/UserRoleList.vue'
 
-type Role = 'prof' | 'eleve' | 'superuser'
+const refreshKey = ref(0)
 
-const roles: { value: Role; label: string }[] = [
-  { value: 'prof', label: 'Professeurs' },
-  { value: 'eleve', label: 'Élèves' },
-  { value: 'superuser', label: 'Superusers' },
-]
-
-const selectedRole = ref<Role | null>(null)
+function refreshAll() {
+  refreshKey.value += 1
+}
 </script>
 
 <style scoped>
-.role-buttons {
-  display: flex;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  margin-bottom: 1rem;
-}
-
-.button.active {
-  background: #01778b;
-  color: #fff;
-}
-
-.list-wrapper {
-  margin-top: 1rem;
-}
-
-.hint {
-  color: #7f8c8d;
-}
-.panel {
+.role-grid {
   margin-top: 2rem;
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: 1fr;
+}
+
+.role-panel {
   padding: 1.5rem;
   border-radius: 1rem;
   background: #01768b1c;
@@ -68,6 +50,19 @@ const selectedRole = ref<Role | null>(null)
   display: flex;
   flex-direction: column;
   gap: 1rem;
-  justify-content: center;
+}
+
+.role-title {
+  margin: 0;
+}
+
+@media (min-width: 900px) {
+  .role-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .role-panel-wide {
+    grid-column: 1 / -1;
+  }
 }
 </style>

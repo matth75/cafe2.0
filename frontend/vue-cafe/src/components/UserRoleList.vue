@@ -4,43 +4,83 @@
     <p v-else-if="isLoading" class="status">Chargement…</p>
 
     <ul v-else>
-      <li v-for="person in filteredUsers" :key="person.login" class="user-row">
-        <span class="identity">
-          <strong>{{ person.nom }} {{ person.prenom }}</strong>
-          <span class="meta">{{ person.email }}</span>
-          <span class="meta">Utilisateur : {{ person.login }}</span>
-        </span>
-        <span class="actions">
-          <button v-if="role === 'superuser'" type="button" class="action-btn secondary" @click="emitRights(person)">Enlever droits</button>
-          <button
-            v-if="role === 'eleve'"
-            type="button"
-            class="action-btn secondary"
-            :disabled="isUpdating === person.login"
-            @click="handleSetTeacher(person)"
-          >
-            {{ isUpdating === person.login ? 'Mise à jour…' : 'Mettre à prof' }}
-          </button>
-          <button v-if="role === 'eleve' || role === 'prof'" type="button" class="action-btn secondary" @click="emitRights(person)">Mettre à SuperUser</button>
-          <button type="button" class="action-btn suppr" @click="emitDelete(person)">Supprimer</button>
-        </span>
-      </li>
-      <li v-if="!filteredUsers.length" class="status">Aucun utilisateur trouvé.</li>
+      <template v-if="role === 'eleve'">
+        <li v-for="group in studentGroups" :key="group.key" class="promo-group">
+          <div class="promo-header">{{ group.label }}</div>
+          <ul class="promo-list">
+            <li v-for="person in group.users" :key="person.login" class="user-row">
+              <span class="identity">
+                <strong>{{ person.nom }} {{ person.prenom }}</strong>
+                <span class="meta">{{ person.email }}</span>
+                <span class="meta">Utilisateur : {{ person.login }}</span>
+              </span>
+              <span class="actions">
+                <button
+                  type="button"
+                  class="action-btn secondary"
+                  :disabled="isUpdating === person.login"
+                  @click="handleSetTeacher(person)"
+                >
+                  {{ isUpdating === person.login ? 'Mise à jour…' : 'Mettre à prof' }}
+                </button>
+                <button
+                  type="button"
+                  class="action-btn suppr"
+                  :disabled="isUpdating === person.login"
+                  @click="handleRemoveUser(person)"
+                >
+                  {{ isUpdating === person.login ? 'Suppression…' : 'Supprimer' }}
+                </button>
+              </span>
+            </li>
+          </ul>
+        </li>
+        <li v-if="!studentGroups.length" class="status">Aucun utilisateur trouvé.</li>
+      </template>
+      <template v-else>
+        <li v-for="person in filteredUsers" :key="person.login" class="user-row">
+          <span class="identity">
+            <strong>{{ person.nom }} {{ person.prenom }}</strong>
+            <span class="meta">{{ person.email }}</span>
+            <span class="meta">Utilisateur : {{ person.login }}</span>
+          </span>
+          <span class="actions">
+            <button
+              v-if="role === 'prof'"
+              type="button"
+              class="action-btn secondary"
+              :disabled="isUpdating === person.login"
+              @click="handleUnsetTeacher(person)"
+            >
+              {{ isUpdating === person.login ? 'Mise à jour…' : 'Retirer prof' }}
+            </button>
+            <button
+              type="button"
+              class="action-btn suppr"
+              :disabled="isUpdating === person.login"
+              @click="handleRemoveUser(person)"
+            >
+              {{ isUpdating === person.login ? 'Suppression…' : 'Supprimer' }}
+            </button>
+          </span>
+        </li>
+        <li v-if="!filteredUsers.length" class="status">Aucun utilisateur trouvé.</li>
+      </template>
     </ul>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { getUsersList, mapApiUser, setTeacher, type UserProfile } from '@/api'
+import { computed, onMounted, ref, watch } from 'vue'
+import { getUsersList, mapApiUser, removeUser, setTeacher, unsetTeacher, type UserProfile } from '@/api'
 
 const props = defineProps<{
-  role: 'prof' | 'eleve' | 'superuser' 
+  role: 'prof' | 'eleve' | 'superuser'
+  refreshKey?: number
 }>()
 
 const emit = defineEmits<{
-  (e: 'delete', user: UserProfile): void
-  (e: 'change-rights', user: UserProfile): void
+  (e: 'refresh'): void
 }>()
 
 const isLoading = ref(false)
@@ -61,7 +101,48 @@ const filteredUsers = computed(() => {
   }
 })
 
+const studentGroups = computed(() => {
+  const students = users.value.filter((u) => !u.teacher && !u.superuser)
+  if (!students.length) return []
+
+  const grouped = new Map<string, { label: string; sortKey: string; users: UserProfile[] }>()
+  for (const student of students) {
+    const promoKey = getPromoKey(student.promo_id)
+    const mapKey = promoKey || '__none__'
+    const existing = grouped.get(mapKey)
+    if (existing) {
+      existing.users.push(student)
+    } else {
+      grouped.set(mapKey, {
+        label: formatPromo(student.promo_id),
+        sortKey: promoKey,
+        users: [student],
+      })
+    }
+  }
+
+  const groups = Array.from(grouped.entries()).map(([key, value]) => ({
+    key,
+    ...value,
+  }))
+
+  groups.sort((a, b) => comparePromoKeys(a.sortKey, b.sortKey))
+  for (const group of groups) {
+    group.users.sort(compareUsersByName)
+  }
+
+  return groups
+})
+
 onMounted(loadUsers)
+watch(
+  () => props.refreshKey,
+  (nextValue, prevValue) => {
+    if (nextValue !== undefined && nextValue !== prevValue) {
+      loadUsers()
+    }
+  },
+)
 
 async function loadUsers() {
   isLoading.value = true
@@ -82,14 +163,6 @@ async function loadUsers() {
   }
 }
 
-function emitDelete(user: UserProfile) {
-  emit('delete', user)
-}
-
-function emitRights(user: UserProfile) {
-  emit('change-rights', user)
-}
-
 async function handleSetTeacher(user: UserProfile) {
   const token = localStorage.getItem('cafe_token')
   if (!token) {
@@ -104,13 +177,70 @@ async function handleSetTeacher(user: UserProfile) {
   error.value = null
   try {
     await setTeacher(token, user.login)
-    await loadUsers()
+    await triggerRefresh()
   } catch (err) {
     console.error('Unable to update teacher role', err)
     error.value = "Impossible de mettre à jour les droits."
   } finally {
     isUpdating.value = null
   }
+}
+
+async function handleUnsetTeacher(user: UserProfile) {
+  const token = localStorage.getItem('cafe_token')
+  if (!token) {
+    error.value = "Token non trouvé."
+    return
+  }
+  if (!user.login) {
+    error.value = "Login utilisateur manquant."
+    return
+  }
+  isUpdating.value = user.login
+  error.value = null
+  try {
+    await unsetTeacher(token, user.login)
+    await triggerRefresh()
+  } catch (err) {
+    console.error('Unable to update teacher role', err)
+    error.value = "Impossible de mettre à jour les droits."
+  } finally {
+    isUpdating.value = null
+  }
+}
+
+async function handleRemoveUser(user: UserProfile) {
+  const token = localStorage.getItem('cafe_token')
+  if (!token) {
+    error.value = "Token non trouvé."
+    return
+  }
+  if (!user.login) {
+    error.value = "Login utilisateur manquant."
+    return
+  }
+  const confirmed = window.confirm(`Supprimer définitivement ${user.nom} ${user.prenom} (${user.login}) ?`)
+  if (!confirmed) {
+    return
+  }
+  isUpdating.value = user.login
+  error.value = null
+  try {
+    await removeUser(token, user.login)
+    await triggerRefresh()
+  } catch (err) {
+    console.error('Unable to remove user', err)
+    error.value = "Impossible de supprimer l'utilisateur."
+  } finally {
+    isUpdating.value = null
+  }
+}
+
+async function triggerRefresh() {
+  if (props.refreshKey === undefined) {
+    await loadUsers()
+  }
+  emit('refresh')
 }
 
 function normalizeUsers(payload: unknown): UserProfile[] {
@@ -137,6 +267,31 @@ function normalizeUsers(payload: unknown): UserProfile[] {
 
   return []
 }
+
+function getPromoKey(promoId: UserProfile['promo_id']) {
+  if (!promoId || promoId === 'false') {
+    return ''
+  }
+  return String(promoId).trim()
+}
+
+function formatPromo(promoId: UserProfile['promo_id']) {
+  const key = getPromoKey(promoId)
+  return key || '—'
+}
+
+function comparePromoKeys(a: string, b: string) {
+  if (!a && !b) return 0
+  if (!a) return 1
+  if (!b) return -1
+  return a.localeCompare(b, 'fr', { numeric: true })
+}
+
+function compareUsersByName(a: UserProfile, b: UserProfile) {
+  const nameA = `${a.nom} ${a.prenom}`.trim()
+  const nameB = `${b.nom} ${b.prenom}`.trim()
+  return nameA.localeCompare(nameB, 'fr')
+}
 </script>
 
 <style scoped>
@@ -153,6 +308,26 @@ function normalizeUsers(payload: unknown): UserProfile[] {
 }
 
 ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.promo-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.promo-header {
+  font-weight: 600;
+  color: #374151;
+}
+
+.promo-list {
   list-style: none;
   padding: 0;
   margin: 0;
