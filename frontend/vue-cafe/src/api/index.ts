@@ -214,3 +214,13 @@ export async function getCSV(promo_id:string){
   });
   return data;
 }
+
+export async function setTeacher(token:string, user_id:string){
+  const headers = token
+    ? { Authorization: `Bearer ${token}` }
+    : undefined;
+  
+  const { data } = await client.get(`users/set/teacher?new_teacher_login=${user_id}`, { headers });
+  return data;
+}
+
