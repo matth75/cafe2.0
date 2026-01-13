@@ -53,13 +53,21 @@
         />
       </div>
       <div class="form-row">
-        <label for="event-location">Lieu</label>
-        <input
-          id="event-location"
+        <ClassroomSelect
           v-model="form.location"
-          type="text"
-          placeholder="Salle / Emplacement"
+          label="Salle"
+          select-id="event-location"
+          :auto-select-first="false"
         />
+      </div>
+      <div class="form-row">
+        <label for="event-location">Type de Cours</label>
+        <select id="add-event-type" v-model="form.type_cours">
+          <option value="CM">CM</option>
+          <option value="TD">TD</option>
+          <option value="TP">TP</option>
+          <option value="AUTRE">Autre</option>
+        </select>
       </div>
       <div class="form-row">
         <label for="event-description">Description</label>
@@ -88,7 +96,7 @@
 <script setup lang="ts">
 import { reactive, watch } from 'vue'
 import { deleteEvent } from '@/api'
-
+import ClassroomSelect from './ClassroomSelect.vue'
 
 interface EventDetail {
   uid: string
@@ -119,6 +127,7 @@ const form = reactive({
   title: '',
   start: '',
   end: '',
+  type_cours: '',
   description: '',
   location: '',
 })
@@ -178,13 +187,19 @@ async function handleDelete() {
     return
   }
 
+  const token = localStorage.getItem('cafe_token') || ''
+  if (!token) {
+    console.warn('Missing auth token for deletion')
+    return
+  }
+
   const confirmed = window.confirm(`Supprimer l’événement "${current.title}" ?`)
   if (!confirmed) {
     return
   }
 
   try {
-    await deleteEvent(current.uid)
+    await deleteEvent(current.uid, token)
     emit('deleted')
     emit('close')
   } catch (err) {

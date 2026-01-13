@@ -69,7 +69,7 @@ import timeGridPlugin from '@fullcalendar/timegrid'
 import listPlugin from '@fullcalendar/list'
 import interactionPlugin from '@fullcalendar/interaction'
 import iCalendarPlugin from '@fullcalendar/icalendar'
-import { addEventToICS, getICS, type EventDetail } from '@/api'
+import { addEventToICS, getICS, modifyEventInICS, type EventDetail } from '@/api'
 import EventAdd from './event_add.vue'
 import EventModif from './event_modif.vue'
 //import EventPopUp from './event_pop_up.vue'
@@ -211,14 +211,43 @@ function formatEventTime(event: any) {
     return endText ? `${startText} – ${endText}` : startText
 }
 
-function handleEventSubmit(payload: {
+async function handleEventSubmit(payload: {
     title: string
     start: string
     end: string
     description: string
     location: string
 }) {
-    
+    const current = selectedEvent.value
+    if (!current?.uid) {
+        console.warn('No UID available for update')
+        return
+    }
+
+    try {
+        const token = localStorage.getItem('cafe_token') || ''
+        if (!token) {
+            throw new Error('Utilisateur non connecté.')
+        }
+        const promoSlug = activePromoSlug.value ?? await fetchPromoSlug()
+        const eventPayload: EventDetail = {
+            matiere: payload.title,
+            start: payload.start,
+            end: payload.end,
+            type_cours: 'AUTRE',
+            infos_sup: payload.description || '',
+            classroom_str: payload.location || '',
+            user_id: 0,
+            promo_str: promoSlug,
+        }
+
+        await modifyEventInICS(current.uid, eventPayload, token)
+        clearSelectedEvent()
+        await loadCalendar()
+    } catch (err) {
+        console.error('Unable to update event', err)
+        error.value = "Impossible de modifier l'événement."
+    }
 }
 
 async function handleEventDeleted() {
@@ -262,7 +291,11 @@ function closeAddEventModal() {
 
 async function handleEventCreate(payload: EventDetail) {
     try {
-        await addEventToICS(payload)
+        const token = localStorage.getItem('cafe_token') || ''
+        if (!token) {
+            throw new Error('Utilisateur non connecté.')
+        }
+        await addEventToICS(payload, token)
         isAddModalOpen.value = false
         await loadCalendar()
     } catch (err) {

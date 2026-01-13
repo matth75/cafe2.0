@@ -161,10 +161,19 @@ export async function getICS(promo_id:string){
   });
   return data;
 }
+export async function deleteEvent(event_id: string, token?: string) {
+  const headers = token
+    ? { Authorization: `Bearer ${token}` }
+    : undefined;
 
-export async function deleteEvent(event_id:string){  
-  const { data } = await client.get(`/ics/delete?uid_str=${event_id}`);
-  return data;
+  const { data } = await client.get(
+    '/ics/delete',
+    {
+    headers,
+    params: { uid_str: event_id },
+    }
+  );
+  return data
 }
 
 export interface EventDetail {
@@ -178,23 +187,36 @@ export interface EventDetail {
   promo_str?: string
 }
 
-export async function addEventToICS(payload: EventDetail) {
-  const body = new URLSearchParams()
-  body.set('start', payload.start)
-  body.set('end', payload.end)
-  body.set('matiere', payload.matiere)
-  body.set('type_cours', payload.type_cours)
-  if (payload.infos_sup) body.set('infos_sup', payload.infos_sup)
-  if (payload.classroom_str) body.set('classroom_str', payload.classroom_str)
-  if (payload.user_id !== undefined && payload.user_id !== null) {
-    body.set('user_id', String(payload.user_id))
+export async function addEventToICS(payload: EventDetail, token?: string) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
   }
-  if (payload.promo_str) body.set('promo_str', payload.promo_str)
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
 
-  const { data } = await client.post(`/ics/insert`, body, {
-    headers: { 'Content-Type': 'application/json' },
-  })
+  const body = {
+    start: payload.start,
+    end: payload.end,
+    matiere: payload.matiere,
+    type_cours: payload.type_cours,
+    infos_sup: payload.infos_sup ?? '',
+    classroom_str: payload.classroom_str ?? '',
+    user_id: payload.user_id ?? 0,
+    promo_str: payload.promo_str ?? '',
+  }
+
+  const { data } = await client.post(`/ics/insert`, body, { headers })
   return data
+}
+
+export async function modifyEventInICS(
+  event_id: string,
+  payload: EventDetail,
+  token?: string,
+) {
+  await deleteEvent(event_id, token)
+  return addEventToICS(payload, token)
 }
 
 
@@ -265,5 +287,3 @@ export async function removeUser(token: string, user_id: string) {
 
   return data;
 }
-
-

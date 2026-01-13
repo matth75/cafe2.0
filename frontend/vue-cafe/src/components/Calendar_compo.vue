@@ -225,7 +225,11 @@ function closeAddEventModal() {
 
 async function handleEventCreate(payload: EventDetail) {
     try {
-        await addEventToICS(payload)
+        const token = localStorage.getItem('cafe_token') || ''
+        if (!token) {
+            throw new Error('Utilisateur non connecté.')
+        }
+        await addEventToICS(payload, token)
         isAddModalOpen.value = false
         await loadCalendar()
     } catch (err) {
