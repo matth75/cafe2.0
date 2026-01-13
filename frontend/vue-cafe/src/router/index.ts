@@ -30,7 +30,7 @@ const router = createRouter({
     path: '/superuser',
     name: 'superuser',
     component: () => import('@/views/Superuser.vue'),
-    meta: { requiresSuperuser: true },
+    meta: { requiresTeacherOrSuperuser: true },
   },
   {
     path: '/su_people',
@@ -42,13 +42,13 @@ const router = createRouter({
     path: '/su_cal',
     name: 'su_cal',
     component: () => import('@/views/Su_cal.vue'),
-    meta: { requiresSuperuser: true },
+    meta: { requiresTeacherOrSuperuser: true },
   },
   {
     path: '/su_room',
     name: 'su_room',
     component: () => import('@/views/Su_room.vue'),
-    meta: { requiresSuperuser: true },
+    meta: { requiresTeacherOrSuperuser: true },
   },
   {
     path: '/stage',
@@ -83,7 +83,10 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
-  if (!to.meta?.requiresSuperuser) {
+  const requiresSuperuser = Boolean(to.meta?.requiresSuperuser)
+  const requiresTeacherOrSuperuser = Boolean(to.meta?.requiresTeacherOrSuperuser)
+
+  if (!requiresSuperuser && !requiresTeacherOrSuperuser) {
     return true
   }
 
@@ -106,7 +109,18 @@ router.beforeEach(async (to) => {
       String(profile?.superuser ?? '').toLowerCase() === 'true' ||
       profile?.superuser === true
 
-    if (isSuperuser) {
+    const isTeacher =
+      String(profile?.teacher ?? '').toLowerCase() === 'true' ||
+      profile?.teacher === true
+
+    if (requiresSuperuser) {
+      if (isSuperuser) {
+        return true
+      }
+      return { name: 'home' }
+    }
+
+    if (requiresTeacherOrSuperuser && (isSuperuser || isTeacher)) {
       return true
     }
 

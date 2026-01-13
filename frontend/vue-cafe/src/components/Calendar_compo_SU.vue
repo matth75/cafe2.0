@@ -4,7 +4,7 @@
     <p v-if="error" class="calendar-status error">{{ error }} </p>
 
     <button
-        v-if="isSuperuser"
+        v-if="(isSuperuser || isTeacher)"
         type="button"
         class="button primary small"
         @click="openAddEventModal"
@@ -24,7 +24,7 @@
     </p>
 
     <div
-        v-if="isAddModalOpen && isSuperuser"
+        v-if="isAddModalOpen && (isSuperuser || isTeacher)"
         class="modal-overlay"
         @click.self="closeAddEventModal"
     >
@@ -38,7 +38,7 @@
     </div>
 
     <EventModif
-        v-if="isConnected && isSuperuser && selectedEvent"
+        v-if="isConnected && (isSuperuser || isTeacher) && selectedEvent"
         :event="selectedEvent"
         @close="clearSelectedEvent"
         @deleted="handleEventDeleted"
@@ -46,7 +46,7 @@
     />
 
     <!-- <EventPopUp
-        v-else-if="selectedEvent && !isSuperuser && isConnected"
+        v-else-if="selectedEvent && !(isSuperuser || isTeacher) && isConnected"
         :event="selectedEvent"
         @close="clearSelectedEvent"
     /> -->
@@ -73,7 +73,7 @@ import { addEventToICS, getICS, type EventDetail } from '@/api'
 import EventAdd from './event_add.vue'
 import EventModif from './event_modif.vue'
 //import EventPopUp from './event_pop_up.vue'
-import { isConnected, isSuperuser, user, syncConnectionStatus } from '@/utils'
+import { isConnected, isSuperuser, isTeacher, user, syncConnectionStatus } from '@/utils'
 
 
 const emit = defineEmits<{

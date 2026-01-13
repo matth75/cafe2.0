@@ -7,7 +7,7 @@
 
     <p v-if="error" class="status-message">{{ error }}</p>
     <div style="text-align: center;">
-      <RouterLink class="button Button_principal" to="/su_people">Gérer les utilisateurs</RouterLink>
+      <RouterLink class="button Button_principal" to="/su_people" v-if="isSuperuser">Gérer les utilisateurs</RouterLink>
       &nbsp; &nbsp; &nbsp;
       <RouterLink class="button Button_principal" to="/su_cal">Gérer les calendriers</RouterLink>
       &nbsp; &nbsp; &nbsp;
@@ -20,6 +20,8 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { getUsersList } from '@/api'
+import { isSuperuserUser, isTeacherUser } from '@/utils'
+import { isSuperuser, isTeacher } from '@/utils'
 
 type RawUser = Record<string, any>
 type UsersResponse = RawUser[] | Record<string, RawUser>
@@ -35,73 +37,10 @@ const filterOptions: Array<{ key: SectionKey; label: string }> = [
   { key: 'superusers', label: 'Superusers' },
 ]
 
-const toBool = (value: unknown): boolean => {
-  if (typeof value === 'boolean') {
-    return value
-  }
-  if (typeof value === 'number') {
-    return value !== 0
-  }
-  if (typeof value === 'string') {
-    const normalized = value.trim().toLowerCase()
-    return normalized === 'true' || normalized === '1' || normalized === 'oui'
-  }
-  return false
-}
-
-const resolveEmail = (user: RawUser): string => {
-  const mail = user.mail ?? user.email ?? ''
-  const value = String(mail).trim()
-  return value || 'Email inconnu'
-}
-
-const resolveName = (user: RawUser): string => {
-  const nom = user.nom ?? user.last_name ?? ''
-  const prenom = user.prenom ?? user.first_name ?? ''
-  const fallback = user.login ?? ''
-
-  const fullName = `${prenom} ${nom}`.trim()
-  if (fullName) {
-    return fullName
-  }
-  if (fallback) {
-    return String(fallback)
-  }
-  return 'Nom inconnu'
-}
-
-const isSuperuser = (user: RawUser): boolean => {
-  const flag = user.superuser ?? user.is_superuser ?? user.isSuperuser
-  return toBool(flag)
-}
-
-const isTeacher = (user: RawUser): boolean => {
-  const droit = String(user.droit ?? user.role ?? user.right ?? '').toLowerCase()
-  if (droit.includes('prof') || droit.includes('enseignant') || droit.includes('teacher')) {
-    return true
-  }
-  const flag = user.teacher ?? user.is_teacher ?? user.isTeacher
-  return toBool(flag)
-}
-
-const resolveDroit = (user: RawUser): string => {
-  const droit = user.droit ?? user.role ?? user.right
-  if (droit) {
-    return String(droit)
-  }
-  if (isSuperuser(user)) {
-    return 'superuser'
-  }
-  if (isTeacher(user)) {
-    return 'prof'
-  }
-  return 'eleve'
-}
-
-const teacherUsers = computed(() => users.value.filter((user) => isTeacher(user)))
-const superuserUsers = computed(() => users.value.filter((user) => isSuperuser(user)))
+const teacherUsers = computed(() => users.value.filter((user) => isTeacherUser(user)))
+const superuserUsers = computed(() => users.value.filter((user) => isSuperuserUser(user)))
 const studentUsers = computed(() =>
-  users.value.filter((user) => !isTeacher(user) && !isSuperuser(user)),
+  users.value.filter((user) => !isTeacherUser(user) && !isSuperuserUser(user)),
 )
 const userSections = computed(() => [
   {

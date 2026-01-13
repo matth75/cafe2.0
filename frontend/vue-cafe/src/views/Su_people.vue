@@ -1,7 +1,8 @@
 <template>
 <section class="content">
   <header class="major">
-    <h1>Espace Superuser </h1>
+   <h1> <RouterLink to="/Superuser">Espace Superuser</RouterLink> </h1>
+    <p>Gestion des utilisateurs de la plateforme CAFE.</p>
   </header>
 
   <div class="role-grid">

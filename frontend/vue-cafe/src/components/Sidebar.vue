@@ -19,8 +19,8 @@
         <li v-if="isConnected"><RouterLink to="/calendar">Calendrier</RouterLink></li>
         <li v-if="isConnected"><RouterLink to="/kawa">Machine à Café</RouterLink></li>
         <li v-if="isConnected"><RouterLink to="/stage">Stage</RouterLink></li>
-        <li v-if="isSuperuser && isConnected">
-          <RouterLink to="/superuser">Espace Superuser</RouterLink>
+        <li v-if="isConnected && (isSuperuser || isTeacher)">
+          <RouterLink to="/superuser">Espace Administrateur</RouterLink>
         </li>
       </ul>
     </nav>
@@ -53,7 +53,7 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted } from 'vue'
 import { AUTH_EVENT } from '@/utils/authEvents'
-import { isConnected, isSuperuser, syncConnectionStatus } from '@/utils'
+import { isConnected, isSuperuser, isTeacher, syncConnectionStatus } from '@/utils'
 
 function syncSuperuserFlag() {
   if (typeof window === 'undefined') {
