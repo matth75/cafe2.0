@@ -11,11 +11,30 @@
         :options="calendarOptions"
     />
 
+    
     <p v-else-if="!isLoading" class="calendar-status empty">
         Impossible d’afficher le calendrier pour le moment.
     </p>
 
-
+    <div align="center" style="margin-top: 20px; margin-bottom: 20px;">
+    <add-to-calendar-button 
+        name="Calendrier SIEN"
+        description="ajouter au calendrier"
+        startDate="2025-11-06"
+        startTime="10:15"
+        endTime="17:45"
+        timeZone="Europe/Berlin"
+        location="World Wide Web"
+        :icsFile="icsFileUrl"
+        subscribe
+        iCalFileName="Calendrier_SIEN"
+        options="'Apple','Google','iCal','Outlook.com','MicrosoftTeams','Yahoo','Microsoft365'"
+        label="Ajouter ton calendrier Perso"
+        lightMode="light"
+        hideCheckmark
+        language="fr">
+</add-to-calendar-button>
+    </div>
 
     <div class="calendar-actions">
         <button type="button" class="button primary small" :disabled="isLoading" @click="loadCalendar">
@@ -37,7 +56,7 @@ import interactionPlugin from '@fullcalendar/interaction'
 import iCalendarPlugin from '@fullcalendar/icalendar'
 import { addEventToICS, getICS, type EventDetail } from '@/api'
 import { isConnected, user, syncConnectionStatus } from '@/utils'
-
+import 'add-to-calendar-button';
 
 const emit = defineEmits<{
     (event: 'calendar-title', title: string): void
@@ -77,6 +96,11 @@ const isAddModalOpen = ref(false)
 const activePromoSlug = ref<string | null>(null)
 
     
+const icsFileUrl = computed(() => {
+    const slug = activePromoSlug.value || 'get_all'
+    return `https://cafe.zpq.ens-paris-saclay.fr/api/ics/${slug}`
+})
+
 const calendarOptions = computed(() => {
     if (!icsUrl.value || !isConnected.value) {
         return null

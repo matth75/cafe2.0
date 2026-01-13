@@ -33,11 +33,12 @@
 </header>
 <p> CAFE est une plateforme dédiée aux étudiants et professeurs du DER SIEN ((Nikola Tesla) ((GE)) (((E3A)))...) pour accéder à leur emploi du temps et à d'autres informations.
     <br />
-    Les étudiants, après inscription, peuvent consulter leur emploi du temps, mis à jour régulièrement par les administrateurs, les ressrouces pédagogiques et des informatiosn diverses.
+    Les étudiants, après inscription, peuvent consulter leur emploi du temps, mis à jour régulièrement par les administrateurs, les ressrouces pédagogiques et des informations diverses.
     Les délégués de promo et les professeurs disposent de fonctionnalités supplémentaires pour gérer les calendriers des promos et des salles et communiquer avec les étudiants.
     <br />
     Sur votre profil, vous pouvez choisir votre promo de référence pour accéder rapidement à votre emploi du temps.
-    Un tuto sur la page de votre calendrier vous guidera pour ajouter votre emploi du temps à votre agenda personnel (Google Calendar, Apple Calendar, etc.).
+    <br />
+    <b>Un bouton sur la page de votre agenda vous permet d'ajouter votre emploi du temps à votre agenda personnel (Google Calendar, Apple Calendar, etc.).</b>
 </p>
 
 
