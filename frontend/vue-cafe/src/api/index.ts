@@ -288,22 +288,43 @@ export async function removeUser(token: string, user_id: string) {
   return data;
 }
 
-export interface room_type {
+export interface struct_room {
   capacity: number
   room_type: string
   location: string
 }
 
-export async function addRoom(token : string, payload: room_type) {
+export async function addRoom(token : string, payload: struct_room) {
+  const headers = token
+    ? { Authorization: `Bearer ${token}` }
+    : undefined;
+
+  const body = {
+    capacity: payload.capacity,
+    type: payload.room_type,
+    location: payload.location,
+  }
+  const { data } = await client.post(
+    `ics/insert_classroom`,
+    body, 
+    {
+      headers,
+    }
+  );
+
+  return data;
+}
+
+export async function delRoom(token : string, location: string) {
   const headers = token
     ? { Authorization: `Bearer ${token}` }
     : undefined;
 
   const { data } = await client.post(
-    `ics/insert/classroom`,
+    `ics/delete_classroom`,
     null, 
     {
-      params: { "capacity": payload.capacity, "type": payload.room_type, "location": payload.location },
+      params: { location },
       headers,
     }
   );
