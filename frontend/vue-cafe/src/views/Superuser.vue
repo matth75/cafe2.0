@@ -1,7 +1,7 @@
 <template>
   <section class="content">
     <header class="major">
-      <h1>Espace Superuser</h1>
+      <h1>Espace Administrateur</h1>
       <p>Actions réservées aux administrateurs de la plateforme CAFE.</p>
     </header>
 

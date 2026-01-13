@@ -43,7 +43,7 @@
     <footer id="footer">
       <p class="copyright">
         &copy; CAFE / SIEN. Design base: HTML5 UP.<br />
-        Version 1.3.1<br />
+        Version 1.3.2<br />
         Tazz - Matthew - Pilou
       </p>
     </footer>

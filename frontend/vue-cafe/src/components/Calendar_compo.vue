@@ -16,7 +16,7 @@
         Impossible d’afficher le calendrier pour le moment.
     </p>
 
-    <div align="center" style="margin-top: 20px; margin-bottom: 20px;">
+    <div v-if="calendarOptions" align="center" style="margin-top: 20px; margin-bottom: 20px;">
     <add-to-calendar-button 
         name="Calendrier SIEN"
         description="ajouter au calendrier"

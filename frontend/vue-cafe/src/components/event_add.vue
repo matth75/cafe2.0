@@ -135,7 +135,7 @@ function handleSubmit() {
 
   form.promos.forEach((promoSlug) => {
     const payload: EventDetail = {
-      matiere: form.matiere,
+      matiere: String(form.matiere + " - " + form.enseignant),
       start: form.start,
       end: form.end,
       type_cours: form.typeCours,

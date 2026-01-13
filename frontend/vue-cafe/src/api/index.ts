@@ -287,3 +287,26 @@ export async function removeUser(token: string, user_id: string) {
 
   return data;
 }
+
+export interface room_type {
+  capacity: number
+  room_type: string
+  location: string
+}
+
+export async function addRoom(token : string, payload: room_type) {
+  const headers = token
+    ? { Authorization: `Bearer ${token}` }
+    : undefined;
+
+  const { data } = await client.post(
+    `ics/insert/classroom`,
+    null, 
+    {
+      params: { "capacity": payload.capacity, "type": payload.room_type, "location": payload.location },
+      headers,
+    }
+  );
+
+  return data;
+}

@@ -2,7 +2,7 @@
   <section class="content">
     <header class="major">
 
-     <h1> <RouterLink to="/Superuser">Espace Superuser</RouterLink> </h1>
+     <h1> <RouterLink to="/Superuser">Espace Administrateur</RouterLink> </h1>
       <p>Actions réservées aux administrateurs de la plateforme CAFE.</p>
     </header>
 
