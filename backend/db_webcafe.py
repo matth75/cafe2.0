@@ -52,13 +52,13 @@ class WebCafeDB:
             # if db is empty create tables !
             c = self.conn.cursor()
             c.execute('CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY AUTOINCREMENT,' \
-            ' login CHAR(20), email CHAR(40), nom CHAR(30), prenom CHAR(30),' \
+            ' login CHAR(30), email CHAR(60), nom CHAR(30), prenom CHAR(30),' \
             ' hpwd TEXT, birthday DATE, promo_id INT, ' \
             'teacher BIT, superuser BIT, noteKfet CHAR(30))')
 
             # create EVENTS table
             c.execute('CREATE TABLE IF NOT EXISTS events (event_id INTEGER PRIMARY KEY AUTOINCREMENT,' \
-            'start DATETIME, end DATETIME, matiere CHAR(30), type_cours CHAR(30), infos_sup CHAR(50),' \
+            'start DATETIME, end DATETIME, matiere CHAR(50), type_cours CHAR(50), infos_sup CHAR(200),' \
             ' classroom_id INT, user_id INT, promo_id INT)')
 
             # create CLASSROOM table
@@ -623,7 +623,8 @@ class WebCafeDB:
     
 
     def _fill_promo(self):
-        promotions = ["Intranet", "M1 E3A", "PSEE", "Saphire"]  
+        """ Mettre des underscore !!! (pour les url )"""
+        promotions = ["Intranet", "M1_E3A", "PSEE", "Saphire"]  
         c = self.conn.cursor()
         for p in promotions:
             try:
@@ -635,9 +636,9 @@ class WebCafeDB:
         
 
     def _fill_classroom(self):
-        rooms_locations = ["2Z28", "2Z34", "2Z42", "2Z48", "2Z63", "2Z68", "2Z71", "2Z57", "1Y40", "1I82", "2Z61", "C2N", "1Z76"]
+        rooms_locations = ["2Z28", "2Z34", "2Z42", "2Z48", "2Z63", "2Z68", "2Z71", "2Z57", "1Y40", "1I82", "2Z61", "C2N", "1Z76", "1S58", "autre"]
         capacity = 30
-        rooms_type = ["TP", "TP", "divers", "CM", "TP", "TP", "TP", "CM", "Exams", "CM", "TP", "labo", "CM"]
+        rooms_type = ["TP", "TP", "divers", "CM", "TP", "TP", "TP", "CM", "Exams", "CM", "TP", "labo", "CM", "1S58", "autre"]
         c = self.conn.cursor()
         for loc, typ in zip(rooms_locations, rooms_type):
             try:

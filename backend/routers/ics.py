@@ -68,8 +68,8 @@ class Classroom(BaseModel):
 class NewEvent(BaseModel):
     start: datetime 
     end:  datetime
-    matiere: Annotated[str, Query(min_length=2, max_length=20)] 
-    type_cours: Annotated[str, Query(min_length=2, max_length=20)] 
+    matiere: Annotated[str, Query(min_length=2, max_length=50)] 
+    type_cours: Annotated[str, Query(min_length=2, max_length=50)] 
     infos_sup: Annotated[str, Query(max_length=200, default="")]    # pas obligé de mettre des infos sup !
     classroom_str: str
     user_id: int | None = 0
@@ -271,15 +271,3 @@ async def delete_classroom(location: str, current_user:Annotated[str, Depends(ge
         return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
     
     return HTTPException(status_code=status.HTTP_200_OK, detail=f"classroom {location} succesfully deleted")
-
-@router.get("/url_list")
-async def get_url_list():
-    ics_url = "https://cafe.zpq.ens-paris-saclay.fr/api/ics"
-
-    db.conn = sqlite3.connect(db.dbname)
-    list = db.conn.execute("SELECT promo_name FROM promo").fetchall()
-    urls = []
-    for p in list:
-        p_undescore = "_".join(p[0].split())
-        urls.append(f"{ics_url}/{p_undescore}")
-    return urls     

@@ -77,7 +77,7 @@ async def read_root():
 
 @app.get("/version")
 async def get_version():
-    return {"version":"1.0.0"}
+    return {"version":"2.0.0"}
 
 
 # ---- token endpoint, to manage Json Web Tokens (JWT) ---- #
@@ -145,7 +145,7 @@ async def get_calendars():
 async def get_csv_by_promo(promo_str:str):
     # remove whitespaces and replace them with underscores for file creation
     promo_str_path= promo_str
-    promo_str_path = "_".join(promo_str_path.split())
+    # promo_str_path = "_".join(promo_str_path.split()) # obslolète
 
     # validate promo_str contains only alphanumeric chars
     if not re.fullmatch(r'[A-Za-z0-9_]+', promo_str_path):
