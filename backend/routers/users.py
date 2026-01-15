@@ -65,8 +65,8 @@ async def create_user(user:User):
                         hpwd=get_password_hash(user.hpwd), 
                         email=user.email,
                         promo_str=user.promo_id,  # type: ignore
-                        superuser=user.superuser,  # type: ignore
-                        teacher=user.teacher,   # type: ignore
+                        superuser=False,  # type: ignore
+                        teacher=False,   # type: ignore
                         noteKfet=user.noteKfet,
                         birthday=user.birthday)     # type: ignore
     

@@ -271,17 +271,3 @@ async def delete_classroom(location: str, current_user:Annotated[str, Depends(ge
         return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
     
     return HTTPException(status_code=status.HTTP_200_OK, detail=f"classroom {location} succesfully deleted")
-
-@router.get("/url_list")
-async def get_url_list():
-    """ Return list like ['Intranet', 'M1_E3A', 'PSEE', ...] pour la construction, par le frontend,
-      des url pour les abonnements aux ics. """
-
-    db.conn = sqlite3.connect(db.dbname)
-    list = db.conn.execute("SELECT promo_name FROM promo").fetchall()
-    names_underscore = []
-    for p in list:
-        p_undescore = "_".join(p[0].split())    # M1 E3A -> M1_E3A pour les url
-        names_underscore.append(p_undescore)
-
-    return names_underscore     

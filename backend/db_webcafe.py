@@ -623,7 +623,8 @@ class WebCafeDB:
     
 
     def _fill_promo(self):
-        promotions = ["Intranet", "M1 E3A", "PSEE", "Saphire"]  
+        """ Mettre des underscore !!! (pour les url )"""
+        promotions = ["Intranet", "M1_E3A", "PSEE", "Saphire"]  
         c = self.conn.cursor()
         for p in promotions:
             try:
