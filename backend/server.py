@@ -138,7 +138,13 @@ async def get_classrooms_detail():
 # get the list of available calendars
 @app.get("/calendars/available")
 async def get_calendars():
-    return list(load_inverse_promos())
+    list_without_ = list(load_inverse_promos())
+    names_underscore = []
+    for p in list_without_:
+        p_undescore = "_".join(p.split())    # M1 E3A -> M1_E3A pour tout le monde !
+        names_underscore.append(p_undescore)
+
+    return names_underscore
 
 
 @app.get("/csv")

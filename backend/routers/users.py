@@ -29,8 +29,8 @@ db = WebCafeDB()
 
 # define a request model for sending data (POST)
 class User(BaseModel):
-    login: Annotated[str, Query(min_length=1, max_length=20)]
-    email:Annotated[EmailStr, Query(max_length=50)]
+    login: Annotated[str, Query(min_length=1, max_length=30)]
+    email:Annotated[EmailStr, Query(max_length=60)]
     nom:Annotated[str, Query(max_length=30)]
     prenom:Annotated[str, Query(max_length=30)]
     hpwd:Annotated[str, Query(max_length=100)]  # password not actually hashed (hpwd), but name compatible with frontend

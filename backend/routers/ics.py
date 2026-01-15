@@ -68,8 +68,8 @@ class Classroom(BaseModel):
 class NewEvent(BaseModel):
     start: datetime 
     end:  datetime
-    matiere: Annotated[str, Query(min_length=2, max_length=20)] 
-    type_cours: Annotated[str, Query(min_length=2, max_length=20)] 
+    matiere: Annotated[str, Query(min_length=2, max_length=50)] 
+    type_cours: Annotated[str, Query(min_length=2, max_length=50)] 
     infos_sup: Annotated[str, Query(max_length=200, default="")]    # pas obligé de mettre des infos sup !
     classroom_str: str
     user_id: int | None = 0
@@ -274,12 +274,14 @@ async def delete_classroom(location: str, current_user:Annotated[str, Depends(ge
 
 @router.get("/url_list")
 async def get_url_list():
-    ics_url = "https://cafe.zpq.ens-paris-saclay.fr/api/ics"
+    """ Return list like ['Intranet', 'M1_E3A', 'PSEE', ...] pour la construction, par le frontend,
+      des url pour les abonnements aux ics. """
 
     db.conn = sqlite3.connect(db.dbname)
     list = db.conn.execute("SELECT promo_name FROM promo").fetchall()
-    urls = []
+    names_underscore = []
     for p in list:
-        p_undescore = "_".join(p[0].split())
-        urls.append(f"{ics_url}/{p_undescore}")
-    return urls     
+        p_undescore = "_".join(p[0].split())    # M1 E3A -> M1_E3A pour les url
+        names_underscore.append(p_undescore)
+
+    return names_underscore     
