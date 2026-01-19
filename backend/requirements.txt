@@ -4,7 +4,8 @@ python
 fastapi
 pytest
 requests
-pyjwt  
+pyjwt
+pwdlib[argon2]
 icalendar
 sqlite
 pandas
