@@ -59,7 +59,8 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { loginUser, getUsersInfo } from '@/api'
+import { loginUser, getUsersInfo, mapApiUser } from '@/api'
+import { emitAuthEvent } from '@/utils/authEvents'
 
 interface LoginFormState {
   login: string
@@ -111,6 +112,15 @@ async function handleSubmit() {
     localStorage.setItem('cafe_token', token)
     const profile =
       Array.isArray(userInfo) && userInfo.length > 0 ? userInfo[0] : userInfo
+    const normalizedProfile = profile ? mapApiUser(profile) : null
+    localStorage.setItem(
+      'cafe_superuser',
+      normalizedProfile?.superuser ? 'true' : 'false',
+    )
+    emitAuthEvent({
+      token,
+      superuser: normalizedProfile?.superuser ?? false,
+    })
     const identifier = profile?.login ?? 'profil'
     await router.push({ name: 'user-detail', params: { id: identifier } })
 
@@ -120,6 +130,8 @@ async function handleSubmit() {
       type: 'error',
       message: extractErrorMessage(err),
     }
+    localStorage.removeItem('cafe_superuser')
+    emitAuthEvent({ token: null, superuser: false })
   } finally {
     isSubmitting.value = false
   }

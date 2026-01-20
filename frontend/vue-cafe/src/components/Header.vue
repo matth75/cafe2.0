@@ -1,7 +1,7 @@
 <template>
 <header id="header">
 <RouterLink class="logo" to="/">
-<strong>Calendirer Académique des Formations de l'ENS</strong>
+<strong>Calendrier Académique des Formations de l'ENS</strong>
 &nbsp; DER SIEN
 </RouterLink>
 <ul class="icons">

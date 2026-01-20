@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { getUsersInfo } from '@/api'
 import HomeView from '@/views/Home.vue'
 
 const router = createRouter({
@@ -24,6 +25,30 @@ const router = createRouter({
     path: '/kawa',
     name: 'kawa',
     component: () => import('@/views/Kawa.vue'),
+  },
+  {
+    path: '/superuser',
+    name: 'superuser',
+    component: () => import('@/views/Superuser.vue'),
+    meta: { requiresTeacherOrSuperuser: true },
+  },
+  {
+    path: '/su_people',
+    name: 'su_people',
+    component: () => import('@/views/Su_people.vue'),
+    meta: { requiresSuperuser: true },
+  },
+  {
+    path: '/su_cal',
+    name: 'su_cal',
+    component: () => import('@/views/Su_cal.vue'),
+    meta: { requiresTeacherOrSuperuser: true },
+  },
+  {
+    path: '/su_room',
+    name: 'su_room',
+    component: () => import('@/views/Su_room.vue'),
+    meta: { requiresTeacherOrSuperuser: true },
   },
   {
     path: '/stage',
@@ -55,6 +80,55 @@ const router = createRouter({
     component: () => import('@/views/NotFound.vue'),
   },
 ],
+})
+
+router.beforeEach(async (to) => {
+  const requiresSuperuser = Boolean(to.meta?.requiresSuperuser)
+  const requiresTeacherOrSuperuser = Boolean(to.meta?.requiresTeacherOrSuperuser)
+
+  if (!requiresSuperuser && !requiresTeacherOrSuperuser) {
+    return true
+  }
+
+  if (typeof window === 'undefined') {
+    return { name: 'login' }
+  }
+
+  const token = localStorage.getItem('cafe_token')
+  if (!token) {
+    return {
+      name: 'login',
+      query: { redirect: to.fullPath },
+    }
+  }
+
+  try {
+    const rawUser = await getUsersInfo(token)
+    const profile = Array.isArray(rawUser) && rawUser.length > 0 ? rawUser[0] : rawUser
+    const isSuperuser =
+      String(profile?.superuser ?? '').toLowerCase() === 'true' ||
+      profile?.superuser === true
+
+    const isTeacher =
+      String(profile?.teacher ?? '').toLowerCase() === 'true' ||
+      profile?.teacher === true
+
+    if (requiresSuperuser) {
+      if (isSuperuser) {
+        return true
+      }
+      return { name: 'home' }
+    }
+
+    if (requiresTeacherOrSuperuser && (isSuperuser || isTeacher)) {
+      return true
+    }
+
+    return { name: 'home' }
+  } catch (error) {
+    console.error('Unable to verify superuser access', error)
+    return { name: 'login' }
+  }
 })
 
 export default router

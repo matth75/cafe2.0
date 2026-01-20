@@ -4,7 +4,7 @@ import axios from "axios";
 const { VITE_API_BASE, VITE_CAL_BASE } = import.meta.env;
 
 export const API_BASE = (VITE_API_BASE as string | undefined) ?? "/api/v1";
-export const CAL_BASE = (VITE_CAL_BASE as string | undefined) ?? "";
+
 
 /** Axios client centralisé */
 export const client = axios.create({
@@ -27,27 +27,22 @@ client.interceptors.response.use(
   }
 );
 
-/* ---- Helpers / URLs ---- */
-export function calendarIcsUrl(slug: string) {
-  if (CAL_BASE) return `${CAL_BASE.replace(/\/$/, "")}/${slug}.ics`;
-  // fallback: suppose API exposes /calendar/:slug.ics on root domain
-  return `${API_BASE.replace(/\/api\/v?\d*$/, "")}/calendar/${slug}.ics`;
-}
-
-/* ---- API functions (exemples) ---- */
+/* ---- API functions ---- */
 
 // ----- Register ---- 
-export interface RegisterPayload {
-  login: string;
-  email: string;
-  nom: string;
-  prenom: string;
-  hpwd: string;
-  superuser: boolean;
-  owner: boolean;
-  noteKfet: string;
+export interface UserProfile {
+  login: string
+  nom: string
+  prenom: string
+  email: string
+  hpwd: string
+  birthday: string 
+  promo_id: string | false
+  superuser: boolean
+  teacher: boolean
+  noteKfet: string
 }
-export async function registerUser(payload: RegisterPayload) {
+export async function registerUser(payload: UserProfile) {
   const { data } = await client.post("/users/create", payload);
   return data;
 }
@@ -72,9 +67,6 @@ export async function loginUser({ username, password }: { username: string; pass
 
 
 
-
-
-
 // ----- Get Users INFO----
 // JWTokens 
 export async function getUsersInfo(token?: string) {
@@ -86,17 +78,52 @@ export async function getUsersInfo(token?: string) {
   return data;
 }
 
+// GET available calendars for the user
+export async function getUserCalendars(token?: string) {
+  const headers = token
+    ? { Authorization: `Bearer ${token}` }
+    : undefined;
 
-export interface UserProfile {
-  login: string
-  nom: string
-  prenom: string
-  email: string
-  birthday: string       //ou Date ?
-  superuser: boolean
-  owner: boolean
-  noteKfet: string
+  const { data } = await client.get("/calendars/available", { headers });
+  return data;
 }
+
+// GET users list (admin)
+export async function getUsersList(token:string){
+  const headers = token
+    ? { Authorization: `Bearer ${token}` }
+    : undefined;
+
+  const { data } = await client.get("/users/all", { headers });
+  return data;
+}
+
+
+
+// ----- Modify User INFO ----
+// modify API db user with frontend user
+export async function modifyUserInfo(payload: Partial<UserProfile>, token?: string) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const { data } = await client.post("/users/modify", payload, { headers });
+  return data;
+}
+
+export async function saveFavoriteCalendar(
+  promo_id : string,
+  token?: string,
+) {
+  return modifyUserInfo(
+    { promo_id } as Partial<UserProfile>,
+    token,
+  );
+}
+
 
 function toBoolStr(v: unknown): boolean {
   // L’API renvoie "True"/"False" (strings)
@@ -104,6 +131,7 @@ function toBoolStr(v: unknown): boolean {
 }
 
 export function mapApiUser(u: any): UserProfile {
+  // 
   return {
     login: u.login ?? '',
     nom: u.nom ?? '',
@@ -111,32 +139,195 @@ export function mapApiUser(u: any): UserProfile {
     email: u.email ?? '',
     birthday: u.birthday ?? '',      // ex: "2000-1-1"
     superuser: toBoolStr(u.superuser),
-    owner: toBoolStr(u.owner),
+    teacher: toBoolStr(u.teacher),
+    promo_id: String(u.promo_id),
+    hpwd: '', // ne pas exposer le mot de passe
     noteKfet: u.noteKfet ?? '',
   }
 }
 
+// -----------------Gestion ICS---------------------------
+
+// attraper ics pour une promo
+export async function getICS(promo_id:string){
+  console.log("Fetching ICS for promo_id:", promo_id);
+  const { data } = await client.get(`/ics/${promo_id}`, {
+    // On ajoute un timestamp pour éviter tout cache navigateur/proxy
+    params: { t: Date.now() },
+    headers: {
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      Pragma: 'no-cache',
+    },
+  });
+  return data;
+}
+export async function deleteEvent(event_id: string, token?: string) {
+  const headers = token
+    ? { Authorization: `Bearer ${token}` }
+    : undefined;
+
+  const { data } = await client.get(
+    '/ics/delete',
+    {
+    headers,
+    params: { uid_str: event_id },
+    }
+  );
+  return data
+}
+
+export interface EventDetail {
+  start: string
+  end: string
+  matiere: string
+  type_cours: string
+  infos_sup?: string
+  classroom_str?: string
+  user_id?: string | number
+  promo_str?: string
+}
+
+export async function addEventToICS(payload: EventDetail, token?: string) {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (token) {
+    headers.Authorization = `Bearer ${token}`
+  }
+
+  const body = {
+    start: payload.start,
+    end: payload.end,
+    matiere: payload.matiere,
+    type_cours: payload.type_cours,
+    infos_sup: payload.infos_sup ?? '',
+    classroom_str: payload.classroom_str ?? '',
+    user_id: payload.user_id ?? 0,
+    promo_str: payload.promo_str ?? '',
+  }
+
+  const { data } = await client.post(`/ics/insert`, body, { headers })
+  return data
+}
+
+export async function modifyEventInICS(
+  event_id: string,
+  payload: EventDetail,
+  token?: string,
+) {
+  await deleteEvent(event_id, token)
+  return addEventToICS(payload, token)
+}
 
 
-
-export async function getCalendars(params?: Record<string, any>) {
-  const { data } = await client.get("/calendars", { params });
+//import all classroom dispo
+export async function getClassrooms(){  
+  const { data } = await client.get(`/classrooms/all`);
   return data;
 }
 
-export async function getEvents(calendarId: number | string, start?: string, end?: string) {
-  const { data } = await client.get(`/calendars/${calendarId}/events`, { params: { start, end } });
+export async function getCSV(promo_id:string){
+  const { data } = await client.get(`/csv/?promo_str=${promo_id}`, {
+    responseType: 'blob',
+    headers: {
+      'Cache-Control': 'no-cache, no-store, must-revalidate',
+      Pragma: 'no-cache',
+    },
+  });
   return data;
 }
 
-/* Export default pour facilité d'import */
-export default {
-  client,
-  API_BASE,
-  calendarIcsUrl,
-  registerUser,
-  loginUser,
-  getUsersInfo,
-  getCalendars,
-  getEvents,
-};
+export async function setTeacher(token: string, user_id: string) {
+  const headers = token
+    ? { Authorization: `Bearer ${token}` }
+    : undefined;
+
+  const { data } = await client.post(
+    `users/set/teacher`,
+    null, 
+    {
+      params: { teacher_login: user_id },
+      headers,
+    }
+  );
+
+  return data;
+}
+
+export async function unsetTeacher(token: string, user_id: string) {
+  const headers = token
+    ? { Authorization: `Bearer ${token}` }
+    : undefined;
+
+  const { data } = await client.post(
+    `users/remove/teacher`,
+    null, 
+    {
+      params: { teacher_login: user_id },
+      headers,
+    }
+  );
+
+  return data;
+}
+
+export async function removeUser(token: string, user_id: string) {
+  const headers = token
+    ? { Authorization: `Bearer ${token}` }
+    : undefined;
+
+  const { data } = await client.post(
+    `users/delete`,
+    null, 
+    {
+      params: { user_login: user_id },
+      headers,
+    }
+  );
+
+  return data;
+}
+
+export interface struct_room {
+  capacity: number
+  room_type: string
+  location: string
+}
+
+export async function addRoom(token : string, payload: struct_room) {
+  const headers = token
+    ? { Authorization: `Bearer ${token}` }
+    : undefined;
+
+  const body = {
+    capacity: payload.capacity,
+    type: payload.room_type,
+    location: payload.location,
+  }
+  const { data } = await client.post(
+    `ics/insert_classroom`,
+    body, 
+    {
+      headers,
+    }
+  );
+
+  return data;
+}
+
+export async function delRoom(token : string, location: string) {
+  const headers = token
+    ? { Authorization: `Bearer ${token}` }
+    : undefined;
+
+  const { data } = await client.post(
+    `ics/delete_classroom`,
+    null, 
+    {
+      params: { location },
+      headers,
+    }
+  );
+
+  return data;
+}

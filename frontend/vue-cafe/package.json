@@ -16,21 +16,26 @@
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
     "lint": "eslint . --fix",
-    "format": "prettier --write src/"
+    "format": "prettier --write src/",
+    "postinstall": "patch-package"
   },
   "dependencies": {
-    "@fullcalendar/core": "^6.1.15",
-    "@fullcalendar/daygrid": "^6.1.15",
-    "@fullcalendar/icalendar": "^6.1.15",
-    "@fullcalendar/interaction": "^6.1.15",
+    "@fortawesome/fontawesome-free": "^7.1.0",
+    "@fullcalendar/core": "^6.1.19",
+    "@fullcalendar/daygrid": "^6.1.19",
+    "@fullcalendar/icalendar": "^6.1.19",
+    "@fullcalendar/interaction": "^6.1.19",
     "@fullcalendar/list": "^6.1.15",
-    "@fullcalendar/timegrid": "^6.1.15",
-    "@fullcalendar/vue3": "^6.1.15",
+    "@fullcalendar/timegrid": "^6.1.19",
+    "@fullcalendar/vue3": "^6.1.19",
+    "add-to-calendar-button": "^2.13.3",
     "axios": "^1.12.2",
+    "ical.js": "^1.5.0",
     "nodemon": "^3.1.10",
     "pinia": "^3.0.3",
     "vue": "^3.5.22",
-    "vue-router": "^4.5.1"
+    "vue-router": "^4.5.1",
+    "vuetify": "^3.10.11"
   },
   "devDependencies": {
     "@playwright/test": "^1.55.1",
@@ -51,6 +56,8 @@
     "jiti": "^2.5.1",
     "jsdom": "^27.0.0",
     "npm-run-all2": "^8.0.4",
+    "patch-package": "^8.0.1",
+    "postinstall-postinstall": "^2.1.0",
     "prettier": "3.6.2",
     "typescript": "~5.9.0",
     "vite": "^7.1.7",
