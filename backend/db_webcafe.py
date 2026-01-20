@@ -309,9 +309,11 @@ class WebCafeDB:
 
         # helper to normalize datetime values to the DB string format
     def _norm_dt(self, val):
-        # file-level import: from datetime import datetime
+        """
+        Normalize datetime values to the DB string format YYYY-MM-DDTHH:MM.
+        If val is already a string, it is returned as-is.
+        """
         if isinstance(val, datetime):
-            # Use same format the rest of the code expects ("YYYY-MM-DD HH:MM")
             return val.strftime("%Y-%m-%dT%H:%M")
         return val
     
@@ -505,24 +507,29 @@ class WebCafeDB:
     
 
     def isClassroomUsed(self, classroom_name: str, start: datetime, end: datetime):
-
-        """ Check if a classroom is used in any event. """
+        """Return True if the classroom has any event overlapping [start, end], else False.
+        Returns:
+            -1: classroom not found
+            -2: database error
+        """
         classroom_id = self.get_classroom_id(classroom_name)
         if classroom_id < 0:
             return -1  # classroom does not exist
+
         try:
-            event_info = self.conn.execute("SELECT COUNT(*) FROM events WHERE classroom_id = ? and start = ?", (classroom_id, start,)).fetchone()[0]
-            if event_info < 0:
-                # check for time overlap
-                event_info = self.conn.execute(
-                    "SELECT COUNT(*) FROM events WHERE classroom_id = ? AND (start > ? AND start < ? OR end > ? AND end < ? OR start < ? AND end > ?)",
-                    (classroom_id, self._norm_dt(start), self._norm_dt(end), self._norm_dt(start), self._norm_dt(end), self._norm_dt(start), self._norm_dt(end)),
-                ).fetchone()[0]
-                return event_info > 0  # True if classroom is used
-            else:
-                return event_info > 0  # True if classroom is used
-        except:
-            return -2  # database error
+            s = self._norm_dt(start)
+            e = self._norm_dt(end)
+
+            # Overlap condition: existing.start < new_end AND existing.end > new_start
+            # (couvre tous les cas d'intersection)
+            count = self.conn.execute(
+                "SELECT COUNT(*) FROM events WHERE classroom_id = ? AND start < ? AND end > ?",
+                (classroom_id, e, s),
+            ).fetchone()[0]
+
+            return count > 0
+        except Exception:
+            return -2
     def insertClassroom(self, location:str, capacity:int, type:str):
         """ Insert a new classroom in the database."""
         # Check if classroom already exists

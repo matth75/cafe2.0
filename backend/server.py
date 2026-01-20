@@ -117,7 +117,7 @@ async def get_classrooms():
         rows = conn.execute("SELECT location FROM classroom").fetchall()
         return [r[0] for r in rows]
     except:
-        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
 # get a detailled list of all classrooms
 @app.get("/classrooms/all/detail")
@@ -133,7 +133,7 @@ async def get_classrooms_detail():
             res[r[0]] = dict(zip(column_names[1:], r[1:]))
         return res
     except:
-        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # get the list of available calendars
 @app.get("/calendars/available")
@@ -149,20 +149,20 @@ async def get_csv_by_promo(promo_str:str):
 
     # validate promo_str contains only alphanumeric chars
     if not re.fullmatch(r'[A-Za-z0-9_]+', promo_str_path):
-        return HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail=f"Invalid promotion name: {promo_str}")
+        raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail=f"Invalid promotion name: {promo_str}")
 
     db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
     # get promo id
     promo_id = db.get_promo_id(promo_str)
     if promo_id < 0:
-        return HTTPException(status_code=status.HTTP_418_IM_A_TEAPOT, detail=f"no promotion in database by the name {promo_str}")
+        raise HTTPException(status_code=status.HTTP_418_IM_A_TEAPOT, detail=f"no promotion in database by the name {promo_str}")
     
 
     if not os.path.isdir(CSV_ROOT_PATH):  # folder does not exist
         try:
             os.mkdir(CSV_ROOT_PATH)
         except:
-            return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"error while managing folders")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"error while managing folders")
 
     # full path         
     csv_path = f"{CSV_ROOT_PATH}/{promo_str_path}.csv"
@@ -170,7 +170,7 @@ async def get_csv_by_promo(promo_str:str):
     res = db.generate_csv(promo_id, csv_path)
     db.conn.close()
     if res == -2:
-        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
     
     return FileResponse(csv_path, filename=f"{promo_str_path}.csv", media_type="text/ics")
 

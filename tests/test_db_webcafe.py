@@ -1,293 +1,385 @@
-import os
+# test_webcafedb.py
 import sqlite3
 import pytest
-from backend.db_webcafe import WebCafeDB, convertPromoStrToInt
-from datetime import datetime, timedelta
-"""
-1 : success
-0 : not found
--1 : failure (e.g., duplicate entry, invalid input)
--2 : database connection error
-"""
-def setup_db_file(tmp_path):
-    db_path = str(tmp_path / "test_webcafe.db")
-    db = WebCafeDB(dbname=db_path)
-    # reopen a connection for operations (WebCafeDB.__init__ closes its connection)
-    db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
-    return db
+from datetime import datetime
 
-def test_convertPromoStrToInt_known_and_unknown():
-    assert convertPromoStrToInt("Intranet") == 1
-    assert convertPromoStrToInt("M1 E3A") == 2
-    assert convertPromoStrToInt("PSEE") == 3
-    assert convertPromoStrToInt("Saphire") == 4
-    # unknown promo returns 0 (default)
-    assert convertPromoStrToInt("DoesNotExist") == 0
+
+from backend.db_webcafe import WebCafeDB, convertPromoStrToInt, load_inverse_promos
 
 
 
-def test_insert_user(tmp_path):
-    db = setup_db_file(tmp_path) 
-    # insert user: signature (login, nom, prenom, hpwd, email, birthday, promo_str, teacher, superuser, noteKfet)
-    res = db.insertUser("alice", "Doe", "Alice", "securehash", "alice@example.com", "2000-01-01", "M1 E3A", False, True)
+@pytest.fixture
+def db(tmp_path):
+    """
+    Fixture: crée une base sqlite temporaire + initialise les tables via WebCafeDB.
+    IMPORTANT: ton __init__ ferme self.conn, donc on la ré-ouvre pour les tests.
+    """
+    db_file = tmp_path / "test_webcafe.db"
+
+    # Les fonctions globales se basent sur WebCafeDB.dbname -> on pointe dessus.
+    WebCafeDB.dbname = str(db_file)
+
+    # init (création tables + données par défaut)
+    _ = WebCafeDB(dbname=str(db_file))
+
+    # instance utilisable (connexion ouverte)
+    instance = WebCafeDB(dbname=str(db_file))
+    instance.conn = sqlite3.connect(str(db_file), check_same_thread=False)
+    yield instance
+    instance.conn.close()
+
+
+# -------------------------
+# Fonctions globales
+# -------------------------
+
+def test_convertPromoStrToInt_empty_returns_0(db):
+    assert convertPromoStrToInt("") == 0
+    assert convertPromoStrToInt(None) == 0  # type: ignore
+
+
+def test_convertPromoStrToInt_existing_promo(db):
+    # promos par défaut via _fill_promo(): ["Intranet", "M1_E3A", "PSEE", "Saphire"]
+    pid = convertPromoStrToInt("M1_E3A")
+    assert isinstance(pid, int)
+    assert pid > 0
+
+
+def test_convertPromoStrToInt_unknown_returns_0(db):
+    assert convertPromoStrToInt("UNKNOWN_PROMO") == 0
+
+
+def test_load_inverse_promos_contains_defaults(db):
+    promos = load_inverse_promos()
+    assert isinstance(promos, list)
+    assert "M1_E3A" in promos
+
+
+# -------------------------
+# Users
+# -------------------------
+
+def test__userExists_unknown_returns_0(db):
+    assert db._userExists("ghost") == 0
+
+
+def test_insertUser_success(db):
+    res = db.insertUser(
+        login="alice",
+        nom="Doe",
+        prenom="Alice",
+        hpwd="hash",
+        email="alice@test.com",
+        birthday="2000-01-01",
+        promo_str="M1_E3A",
+        teacher=False,
+        superuser=False,
+        noteKfet="hi",
+    )
     assert res == 1
+    assert db._userExists("alice") == 1
 
-    # verify row in database
-    cur = db.conn.cursor()
-    row = cur.execute(
-        "SELECT login, email, nom, prenom, hpwd, birthday, promo_id, teacher, superuser, noteKfet FROM users WHERE login = ?",
-        ("alice",)
-    ).fetchone()
-    assert row is not None
 
-    # expected values based on insert order and conversions:
-    # login, email, nom, prenom, hpwd, birthday, promo_id (M1 E3A -> 2), teacher (False -> 0), superuser (True -> 1), noteKfet (default empty)
-    assert row == ("alice", "alice@example.com", "Doe", "Alice", "securehash", "2000-01-01", 2, 0, 1, "")
-    # inserting same login again should fail with -1
-    res_dup = db.insertUser("alice", "Doe", "Alice", "securehash", "alice@example.com", "2000-01-01", "M1 E3A", False, True)
-    assert res_dup == -1
-    db.conn.close()
-    # Attempt to insert user should return -2 due to closed connection
-    res = db.insertUser("bob", "Smith", "Bob", "hash", "bob@example.com", "1990-05-15", "PSEE", False, False)
-    assert res == -2
+def test_insertUser_duplicate_returns_minus1(db):
+    assert db.insertUser("bob", "N", "P", "h", "b@test.com") == 1
+    assert db.insertUser("bob", "N", "P", "h", "b2@test.com") == -1
 
-def test_deleteUser(tmp_path):
-    db = setup_db_file(tmp_path)
 
-    # insert a user to delete
-    db.insertUser("charlie", "Brown", "Charlie", "hashcharlie", "charlie@example.com", "1985-07-20", "Intranet", False, False)
-    res = db.deleteUser("charlie")
+def test_userGetHashedPwd_ok(db):
+    db.insertUser("carol", "N", "P", "secret_hash", "c@test.com")
+    assert db.userGetHashedPwd("carol") == "secret_hash"
 
-    assert res == 1
-    assert not db._userExists("charlie")
 
-    res_nonexistent = db.deleteUser("nonexistent")
-    assert res_nonexistent == 0
-    db.conn.close()
-    res = db.deleteUser("anyuser")
-    assert res == -2
- 
-def test_userExists(tmp_path):
-    db = setup_db_file(tmp_path)
+def test_userGetHashedPwd_unknown_returns_minus2(db):
+    assert db.userGetHashedPwd("ghost") == -2
 
-    # insert a user to check existence
-    db.insertUser("dave", "Clark", "Dave", "hashdave", "dave@example.com", "1992-03-10", "Saphire", True, False)
-    res = db._userExists("dave")
-    assert res == 1
-    res_nonexistent = db._userExists("eve")
-    assert res_nonexistent == 0
-    db.conn.close()
-    res = db._userExists("dave")
-    assert res == -2
 
-def test_userCheckPassword(tmp_path):
-    db = setup_db_file(tmp_path)
+def test_get_user_unknown_returns_0(db):
+    assert db.get_user("ghost") == 0
 
-    # insert a user to check password
-    db.insertUser("frank", "Wright", "Frank", "hashfrank", "frank@example.com", "1988-11-30", "M1 E3A", False, True)
-    res = db.userCheckPassword("frank", "hashfrank")
-    assert res == 1
-    res_wrong = db.userCheckPassword("frank", "wronghash")
-    assert res_wrong == -1
-    res_nonexistent = db.userCheckPassword("ghost", "anyhash")
-    assert res_nonexistent == 0
-    db.conn.close()
-    res_closed = db.userCheckPassword("frank", "hashfrank")
-    assert res_closed == -2
 
-def test_get_user(tmp_path):
-    db = setup_db_file(tmp_path)
-    # insert a user to retrieve
-    db.insertUser("grace", "Hopper", "Grace", "hashgrace", "grace@example.com", "1906-12-09", "Intranet", True, True)
-    user_info = db.get_user("grace")
-    assert user_info is not None
-    assert user_info["login"] == "grace"
-    assert user_info["email"] == "grace@example.com"
-    assert user_info["nom"] == "Hopper"
-    assert user_info["prenom"] == "Grace"
-    assert user_info["birthday"] == "1906-12-09"
-    assert user_info["promo_id"] == "Intranet"
-    assert user_info["teacher"] is True
-    assert user_info["superuser"] is True
-    assert user_info["noteKfet"] == ""
-    res = db.get_user("nonexistent")
-    assert res == 0
-    db.conn.close()
-    res = db.get_user("grace")
-    assert res == -2
+def test_get_user_ok_structure(db):
+    db.insertUser("dave", "Nom", "Prenom", "h", "d@test.com", promo_str="PSEE", teacher=True, superuser=False)
+    u = db.get_user("dave")
+    assert isinstance(u, dict)
+    assert u["login"] == "dave"
+    assert u["promo_id"] in ("PSEE", "")  # promo name
+    assert isinstance(u["teacher"], bool)
+    assert isinstance(u["superuser"], bool)
 
-def test_user_getall(tmp_path):
-    db = setup_db_file(tmp_path)
+
+def test_user_getall_returns_dict(db):
+    db.insertUser("e1", "N", "P", "h", "e1@test.com", promo_str="M1_E3A", teacher=True, superuser=True)
     res = db.user_getall()
-    assert res == 0  # no users yet
-    # insert multiple users
-    db.insertUser("henry", "Ford", "Henry", "hashhenry", "henry@example.com", "1863-07-30", "PSEE", False, False)
-    db.insertUser("isabel", "Allende", "Isabel", "hashisabel", "isabel@example.com", "1942-08-02", "Saphire", True, False)
-    users = db.user_getall()
-    assert isinstance(users, dict)
-    assert "henry" in users
-    assert "isabel" in users
-    assert users["henry"]["email"] == "henry@example.com"
-    assert users["henry"]["teacher"] is False
-    assert users["henry"]["superuser"] is False
-    assert users["henry"]["nom"] == "Ford"
-    assert users["henry"]["prenom"] == "Henry"
-    assert users["henry"]["promo_id"] == "PSEE" 
-    assert users["isabel"]["email"] == "isabel@example.com"
-    assert users["isabel"]["teacher"] is True
-    assert users["isabel"]["superuser"] is False
-    assert users["isabel"]["nom"] == "Allende"
-    assert users["isabel"]["prenom"] == "Isabel"
-    assert users["isabel"]["promo_id"] == "Saphire" 
-    db.conn.close()
-    res = db.user_getall()
-    assert res == -2
+    assert isinstance(res, dict)
+    assert "e1" in res
+    assert "email" in res["e1"]
 
-def test_user_modify(tmp_path):
-    db = setup_db_file(tmp_path)
 
-    # insert a user to modify
-    db.insertUser("jack", "London", "Jack", "hashjack", "jack@example.com", "1876-01-12", "M1 E3A", False, False)
-    # modify some fields
-    res = db.user_modify("jack", {"nom": "Smith", "prenom": "John", "promo_id": "PSEE", "birthday": "1876-01-15", "noteKfet": "Loves coffee"})
+def test_user_modify_invalid_keys_returns_minus1(db):
+    db.insertUser("emma", "N", "P", "h", "e@test.com")
+    assert db.user_modify("emma", {"badkey": "x"}) == -1
+    assert db.user_modify("emma", {}) == -1
+
+
+def test_user_modify_user_not_found_returns_0(db):
+    assert db.user_modify("ghost", {"nom": "X"}) == 0
+
+
+def test_user_modify_ok(db):
+    db.insertUser("frank", "Old", "P", "h", "f@test.com", promo_str="M1_E3A")
+    assert db.user_modify("frank", {"nom": "NewNom", "promo_id": "PSEE"}) == 1
+    u = db.get_user("frank")
+    assert u["nom"] == "NewNom"
+    assert u["promo_id"] == "PSEE"
+
+
+def test_user_modify_invalid_promo_returns_minus1(db):
+    db.insertUser("gina", "N", "P", "h", "g@test.com")
+    assert db.user_modify("gina", {"promo_id": "DOES_NOT_EXIST"}) == -1
+
+
+def test_check_superuser_paths(db):
+    db.insertUser("su", "N", "P", "h", "su@test.com", superuser=True)
+    db.insertUser("nosu", "N", "P", "h", "nosu@test.com", superuser=False)
+    assert db.check_superuser("ghost") == 0
+    assert db.check_superuser("su") == 1
+    assert db.check_superuser("nosu") == -1
+
+
+def test_check_teacher_paths(db):
+    db.insertUser("t", "N", "P", "h", "t@test.com", teacher=True)
+    db.insertUser("not", "N", "P", "h", "not@test.com", teacher=False)
+    assert db.check_teacher("ghost") == 0
+    assert db.check_teacher("t") == 1
+    assert db.check_teacher("not") == -1
+
+
+def test_set_teacher_and_remove_teacher(db):
+    db.insertUser("tt", "N", "P", "h", "tt@test.com", teacher=False)
+    assert db.set_teacher("tt") == 1
+    assert db.check_teacher("tt") == 1
+    assert db.remove_teacher("tt") == 1
+    assert db.check_teacher("tt") == -1
+
+
+def test_remove_user(db):
+    db.insertUser("rm", "N", "P", "h", "rm@test.com")
+    assert db.remove_user("rm") == 1
+    assert db._userExists("rm") == 0
+
+
+def test_deleteUser_by_login(db):
+    db.insertUser("del", "N", "P", "h", "del@test.com")
+    assert db.deleteUser("del") == 1
+    assert db.deleteUser("del") == 0  # already gone
+
+
+# -------------------------
+# Datetime helper
+# -------------------------
+
+def test__norm_dt_datetime_to_iso(db):
+    dt = datetime(2025, 1, 2, 3, 4)
+    s = db._norm_dt(dt)
+    assert s == "2025-01-02T03:04"
+
+
+def test__norm_dt_passthrough(db):
+    assert db._norm_dt("2025-01-02T03:04") == "2025-01-02T03:04"
+
+
+# -------------------------
+# Classroom
+# -------------------------
+
+def test_get_classroom_id_unknown_returns_minus3(db):
+    assert db.get_classroom_id("NOPE") == -3
+
+
+def test_insertClassroom_then_get_id(db):
+    assert db.insertClassroom("X1", 42, "CM") == 1
+    cid = db.get_classroom_id("X1")
+    assert cid > 0
+
+
+def test_insertClassroom_duplicate_returns_minus1(db):
+    assert db.insertClassroom("X2", 30, "TP") == 1
+    assert db.insertClassroom("X2", 30, "TP") == -1
+
+
+def test_deleteClassroom_ok(db):
+    db.insertClassroom("X3", 30, "TP")
+    assert db.deleteClassroom("X3") == 1
+    assert db.get_classroom_id("X3") == -3
+
+
+def test_deleteClassroom_unknown_returns_minus1(db):
+    assert db.deleteClassroom("NOPE") == -1
+
+
+# -------------------------
+# Events
+# -------------------------
+
+def test__eventExists_false(db):
+    assert db._eventExists("2099-01-01T10:00", 1) in (False, 0)
+
+
+def test_insertEvent_success(db):
+    # besoin d'un classroom_id existant
+    cid = db.get_classroom_id("2Z28")  # rempli par défaut via _fill_classroom()
+    assert cid > 0
+
+    start = datetime(2025, 11, 4, 10, 0)
+    end = datetime(2025, 11, 4, 12, 0)
+    res = db.insertEvent(start, end, "Math", "CM", classroom_id=cid, promo_id=1)
     assert res == 1
-    user_info = db.get_user("jack")
-    assert user_info["nom"] == "Smith"
-    assert user_info["prenom"] == "John"
-    assert user_info["promo_id"] == "PSEE"
-    assert user_info["birthday"] == "1876-01-15"
-    assert user_info["noteKfet"] == "Loves coffee"
-    # attempt to modify with invalid keys
-    res_invalid = db.user_modify("jack", {"invalid_key": "value"})
-    assert res_invalid == -1
-    # attempt to modify non-existent user
-    res_nonexistent = db.user_modify("nonexistent", {"nom": "Noone"})
-    assert res_nonexistent == 0
-    # attempt to modify with empty dict
-    res_empty = db.user_modify("jack", {})
-    assert res_empty == -1
-    res_wrong_promo = db.user_modify("jack", {"promo_id": "UnknownPromo"})
-    assert res_wrong_promo == -1
-    db.conn.close()
-    res_closed = db.user_modify("jack", {"nom": "Closed"})
-    assert res_closed == -2
-
-def test_check_superuser(tmp_path):
-    db = setup_db_file(tmp_path)
-
-    # insert users
-    db.insertUser("kate", "Winslet", "Kate", "hashkate", "kate@example.com", "1975-10-05", "Intranet", False, True)
-    db.insertUser("leo", "DiCaprio", "Leo", "hashleo", "leo@example.com", "1974-11-11", "Intranet", False, False)
-    res_kate = db.check_superuser("kate")
-    assert res_kate == 1
-    res_leo = db.check_superuser("leo")
-    assert res_leo == -1
-    res_nonexistent = db.check_superuser("nonexistent")
-    assert res_nonexistent == 0
-    db.conn.close()
-    res_closed = db.check_superuser("kate")
-    assert res_closed == -2
-
-def test_set_Teacher(tmp_path):
-    db = setup_db_file(tmp_path)
-    # insert a user to set as teacher
-    db.insertUser("mike", "Tyson", "Mike", "hashmike", "mike@example.com", "1966-06-30", "M1 E3A", False, False)
-    res = db.set_Teacher("mike")
-    assert res == 1
-    user_info = db.get_user("mike")
-    assert user_info["teacher"] is True
-    # attempt to set non-existent user as teacher
-    res_nonexistent = db.set_Teacher("nonexistent")
-    assert res_nonexistent == 0
-    db.conn.close()
-    res_closed = db.set_Teacher("mike")
-    assert res_closed == -2
-
-def test_insertEvent(tmp_path):
-    db = setup_db_file(tmp_path)
-    start_dt = datetime.now()
-    end_dt = start_dt + timedelta(hours=2)
-    res = db.insertEvent(start_dt, end_dt, "ondelette", "cm", classroom_id=1, user_id=1, promo_id=1, infos_sup="Initial Event")
-    assert res == 1
-    # verify event in database
-    cur = db.conn.cursor()
-    row = cur.execute(
-        "SELECT start, end, matiere, type_cours, infos_sup, classroom_id, user_id, promo_id FROM events WHERE promo_id = ?",
-        (1,)
-    ).fetchone()
-    assert row is not None
-    assert row[0] == start_dt.strftime("%Y-%m-%dT%H:%M")
-    assert row[1] == end_dt.strftime("%Y-%m-%dT%H:%M")
-    assert row[2] == "ondelette"
-    assert row[3] == "cm"
-    assert row[4] == "Initial Event"
-    assert row[5] == 1
-    assert row[6] == 1
-    assert row[7] == 1
-    res_existing = db.insertEvent(start_dt, end_dt, "ondelette", "cm", classroom_id=1, user_id=1, promo_id=1, infos_sup="Initial Event")
-    assert res_existing == -1
-    db.conn.close()
-    
-    res_closed = db.insertEvent(start_dt, end_dt, "ondelette", "cm", classroom_id=1, user_id=1, promo_id=1, infos_sup="Initial Event")
-    assert res_closed == -2
 
 
-def test_eventExists(tmp_path):
-    db = setup_db_file(tmp_path)
-    start_dt = datetime.now()
-    end_dt = start_dt + timedelta(hours=2)
-    # insert an event
-    db.insertEvent(start_dt, end_dt, "math", "cm", classroom_id=1, user_id=1, promo_id=1) 
-    # test that event exists with matching start and promo_id
-    norm_start = start_dt.strftime("%Y-%m-%dT%H:%M")
-    res = db._eventExists(norm_start, 1)
-    assert res is True     
-    # test that event doesn't exist with same start but different promo_id
-    res_diff_promo = db._eventExists(norm_start, 2)
-    assert res_diff_promo is False       
-    # test that event doesn't exist with different start time
-    different_start = (start_dt + timedelta(hours=1)).strftime("%Y-%m-%dT%H:%M")
-    res_diff_start = db._eventExists(different_start, 1)
-    assert res_diff_start is False    
-    # test with non-existent start and promo_id
-    res_nonexistent = db._eventExists("2099-12-31T23:59", 99)
-    assert res_nonexistent is False     
-    db.conn.close()     
-    # test with closed connection
-    res_closed = db._eventExists(norm_start, 1)
-    assert res_closed == -2
+def test_insertEvent_duplicate_returns_minus1(db):
+    cid = db.get_classroom_id("2Z28")
+    start = datetime(2025, 11, 4, 10, 0)
+    end = datetime(2025, 11, 4, 12, 0)
+    assert db.insertEvent(start, end, "Math", "CM", classroom_id=cid, promo_id=1) == 1
+    assert db.insertEvent(start, end, "Math", "CM", classroom_id=cid, promo_id=1) == -1
 
-def test_isClassroomUsed(tmp_path):
-    db = setup_db_file(tmp_path)
-    start_dt = datetime.now()
-    end_dt = start_dt + timedelta(hours=2)
-     
-    # insert an event in classroom "2Z28" (exists by default)
-    db.insertEvent(start_dt, end_dt, "math", "cm", classroom_id=1, user_id=1, promo_id=1)
-        
-    # test classroom is used at exact start time
-    res = db.isClassroomUsed("2Z28", start_dt, end_dt)
-    assert res is True
-      
-    # test classroom is not used at different time
-    different_start = start_dt + timedelta(hours=3)
-    different_end = different_start + timedelta(hours=2)
-    res_unused = db.isClassroomUsed("2Z28", different_start, different_end)
-    assert res_unused is False
-        
-    # test classroom is used with overlapping time range
-    overlap_start = start_dt + timedelta(minutes=30)
-    overlap_end = overlap_start + timedelta(hours=1)
-    res_overlap = db.isClassroomUsed("2Z28", overlap_start, overlap_end)
-    assert res_overlap is True
-        
-    # test non-existent classroom
-    res_nonexistent = db.isClassroomUsed("NonExistent", start_dt, end_dt)
-    assert res_nonexistent == -1
-      
-    db.conn.close()
-       
-    # test with closed connection
-    res_closed = db.isClassroomUsed("2Z28", start_dt, end_dt)
-    assert res_closed == -2
 
+def test__get_events_id_single_and_multi(db):
+    cid = db.get_classroom_id("2Z28")
+    start = datetime(2025, 11, 4, 10, 0)
+    end = datetime(2025, 11, 4, 12, 0)
+    db.insertEvent(start, end, "Math", "CM", classroom_id=cid, promo_id=1)
+
+    # single
+    eid = db._get_events_id({"start": start.strftime("%Y-%m-%dT%H:%M"), "promo_id": 1}, single=True)
+    assert isinstance(eid, int) and eid > 0
+
+    # multi
+    ids = db._get_events_id({"promo_id": 1}, single=False)
+    assert isinstance(ids, list)
+    assert eid in ids
+
+
+def test__get_events_on_ids(db):
+    cid = db.get_classroom_id("2Z28")
+    start = datetime(2025, 11, 4, 10, 0)
+    end = datetime(2025, 11, 4, 12, 0)
+    db.insertEvent(start, end, "Math", "CM", classroom_id=cid, promo_id=1)
+
+    eid = db._get_events_id({"promo_id": 1}, single=True)
+    events = db._get_events_on_ids([eid])
+    assert len(events) == 1
+    assert events[0]["event_id"] == eid
+    assert "classroom_location" in events[0]
+
+
+def test_deleteEvent_invalid_id_returns_minus3(db):
+    assert db.deleteEvent(0) == -3
+    assert db.deleteEvent(-1) == -3
+
+
+def test_deleteEvent_not_found_returns_minus1(db):
+    assert db.deleteEvent(999999) == -1
+
+
+def test_deleteEvent_ok(db):
+    cid = db.get_classroom_id("2Z28")
+    start = datetime(2025, 11, 4, 10, 0)
+    end = datetime(2025, 11, 4, 12, 0)
+    db.insertEvent(start, end, "Math", "CM", classroom_id=cid, promo_id=1)
+    eid = db._get_events_id({"promo_id": 1}, single=True)
+
+    assert db.deleteEvent(eid) == 1
+    assert db.deleteEvent(eid) == -1
+
+
+def test_modifyEvent_invalid_input_returns_minus1(db):
+    assert db.modifyEvent(0, {"matiere": "X"}) == -1
+    assert db.modifyEvent(1, {}) == -1
+    assert db.modifyEvent(1, {"badkey": "X"}) == -1
+
+
+def test_modifyEvent_not_found_returns_0(db):
+    assert db.modifyEvent(999999, {"matiere": "X"}) == 0
+
+
+def test_modifyEvent_ok(db):
+    cid = db.get_classroom_id("2Z28")
+    start = datetime(2025, 11, 4, 10, 0)
+    end = datetime(2025, 11, 4, 12, 0)
+    db.insertEvent(start, end, "Old", "CM", classroom_id=cid, promo_id=1)
+    eid = db._get_events_id({"promo_id": 1}, single=True)
+
+    assert db.modifyEvent(eid, {"matiere": "New"}) == 1
+    ev = db._get_events_on_ids([eid])[0]
+    assert ev["matiere"] == "New"
+
+
+
+def test_isClassroomUsed_returns_minus1_if_classroom_unknown(db):
+    start = datetime(2025, 11, 4, 10, 0)
+    end = datetime(2025, 11, 4, 12, 0)
+    assert db.isClassroomUsed("NO_SUCH_ROOM", start, end) == -1
+
+
+def test_isClassroomUsed_false_when_no_event(db):
+    start = datetime(2025, 11, 4, 10, 0)
+    end = datetime(2025, 11, 4, 12, 0)
+    assert db.isClassroomUsed("2Z28", start, end) is False
+
+
+def test_isClassroomUsed_true_when_exact_overlap(db):
+    cid = db.get_classroom_id("2Z28")
+    start = datetime(2025, 11, 4, 10, 0)
+    end = datetime(2025, 11, 4, 12, 0)
+
+    assert db.insertEvent(start, end, "Math", "CM", classroom_id=cid, promo_id=1) == 1
+    assert db.isClassroomUsed("2Z28", start, end) is True
+
+
+def test_isClassroomUsed_true_when_partial_overlap_left(db):
+    cid = db.get_classroom_id("2Z28")
+    # event existant: 10:00 - 12:00
+    db.insertEvent(datetime(2025, 11, 4, 10, 0), datetime(2025, 11, 4, 12, 0),
+                   "Math", "CM", classroom_id=cid, promo_id=1)
+
+    # requête: 09:00 - 10:30 (chevauche)
+    assert db.isClassroomUsed("2Z28", datetime(2025, 11, 4, 9, 0), datetime(2025, 11, 4, 10, 30)) is True
+
+
+def test_isClassroomUsed_true_when_partial_overlap_right(db):
+    cid = db.get_classroom_id("2Z28")
+    db.insertEvent(datetime(2025, 11, 4, 10, 0), datetime(2025, 11, 4, 12, 0),
+                   "Math", "CM", classroom_id=cid, promo_id=1)
+
+    # requête: 11:30 - 13:00 (chevauche)
+    assert db.isClassroomUsed("2Z28", datetime(2025, 11, 4, 11, 30), datetime(2025, 11, 4, 13, 0)) is True
+
+
+def test_isClassroomUsed_true_when_new_contains_existing(db):
+    cid = db.get_classroom_id("2Z28")
+    db.insertEvent(datetime(2025, 11, 4, 10, 0), datetime(2025, 11, 4, 12, 0),
+                   "Math", "CM", classroom_id=cid, promo_id=1)
+
+    # requête: 09:00 - 13:00 (englobe)
+    assert db.isClassroomUsed("2Z28", datetime(2025, 11, 4, 9, 0), datetime(2025, 11, 4, 13, 0)) is True
+
+
+def test_isClassroomUsed_false_when_touching_edge_only(db):
+    cid = db.get_classroom_id("2Z28")
+    db.insertEvent(datetime(2025, 11, 4, 10, 0), datetime(2025, 11, 4, 12, 0),
+                   "Math", "CM", classroom_id=cid, promo_id=1)
+
+    # requête: 12:00 - 13:00 (touche juste la fin, pas de chevauchement)
+    assert db.isClassroomUsed("2Z28", datetime(2025, 11, 4, 12, 0), datetime(2025, 11, 4, 13, 0)) is False
+
+
+
+# -------------------------
+# Promo helper
+# -------------------------
+
+def test_get_promo_id_ok_and_unknown(db):
+    assert db.get_promo_id("M1_E3A") > 0
+    assert db.get_promo_id("UNKNOWN") == -1

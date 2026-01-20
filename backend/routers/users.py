@@ -90,12 +90,12 @@ async def modify_my_data(current_user_login : Annotated[str, Depends(get_current
     res = db.user_modify(current_user_login, user_info)
     db.conn.close()
     if res == -1:
-        return HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail="empty data to update")
+        raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail="empty data to update")
     if res == -2:
-        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="unable to edit info")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="unable to edit info")
     if res == -3:
-        return HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail="wrong fields provided")
-    return HTTPException(status_code=status.HTTP_202_ACCEPTED, detail=f"user {current_user_login} succesfully modified")
+        raise HTTPException(status_code=status.HTTP_406_NOT_ACCEPTABLE, detail="wrong fields provided")
+    raise HTTPException(status_code=status.HTTP_202_ACCEPTED, detail=f"user {current_user_login} succesfully modified")
 
 
 @router.get("/all")
@@ -109,7 +109,7 @@ async def get_allUsers(current_user_login : Annotated[str, Depends(get_current_u
         db.conn.close()
         return user_info
     else:
-        return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"user {current_user_login} is not superuser")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=f"user {current_user_login} is not superuser")
     
 
 # change rights to teacher. "Depends(get_current_user)" -> need to be logged in.
@@ -123,9 +123,9 @@ async def set_teacher_rights(current_user_login : Annotated[str, Depends(get_cur
         res = db.set_teacher(teacher_login)
         db.conn.close()
         if res == 1:
-            return HTTPException(status_code=status.HTTP_200_OK, detail=f"User {teacher_login} succesfully updated rights to teacher")
+            raise HTTPException(status_code=status.HTTP_200_OK, detail=f"User {teacher_login} succesfully updated rights to teacher")
         else:
-            return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"could not modify user {teacher_login}")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"could not modify user {teacher_login}")
     elif user_rights == -1:
         raise HTTPException (status_code=status.HTTP_401_UNAUTHORIZED, detail=f"user {current_user_login} is not superuser")
     else:
@@ -142,9 +142,9 @@ async def remove_teacher_rights(current_user_login : Annotated[str, Depends(get_
         res = db.remove_teacher(teacher_login)
         db.conn.close()
         if res == 1:
-            return HTTPException(status_code=status.HTTP_200_OK, detail=f"User {teacher_login} succesfully removed teacher rights")
+            raise HTTPException(status_code=status.HTTP_200_OK, detail=f"User {teacher_login} succesfully removed teacher rights")
         else:
-            return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"could not modify user {teacher_login}")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"could not modify user {teacher_login}")
     elif user_rights == -1:
         raise HTTPException (status_code=status.HTTP_401_UNAUTHORIZED, detail=f"user {current_user_login} is not superuser")
     else:
@@ -160,9 +160,9 @@ async def delete_user(user_login:str, su_login:Annotated[str, Depends(get_curren
         res = db.remove_user(user_login)
         db.conn.close()
         if res == 1:
-            return HTTPException(status_code=status.HTTP_200_OK, detail=f"User {user_login} succesfully deleted")
+            raise HTTPException(status_code=status.HTTP_200_OK, detail=f"User {user_login} succesfully deleted")
         else:
-            return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"could not delete user {user_login}")
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"could not delete user {user_login}")
     elif user_rights == -1:
         raise HTTPException (status_code=status.HTTP_401_UNAUTHORIZED, detail=f"user {user_login} is not superuser")
     else:

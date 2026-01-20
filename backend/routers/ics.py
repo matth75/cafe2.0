@@ -127,11 +127,11 @@ async def return_all_events():
                 fcntl.flock(lockf, fcntl.LOCK_EX)
                 res = db.generate_ics(db.dbname, ics_path)
                 if res == -2:
-                    return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="could not query database")
+                    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="could not query database")
                 if res == -1:
-                    return HTTPException(status_code=status.HTTP_412_PRECONDITION_FAILED, detail="no events found for the given filters")
+                    raise HTTPException(status_code=status.HTTP_412_PRECONDITION_FAILED, detail="no events found for the given filters")
                 if res == -3:
-                    return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="could not save ics.file")
+                    raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="could not save ics.file")
                 with open(meta_sidecar, "w") as mf:
                     json.dump({"version": db_version, "generated_at": datetime.utcnow().isoformat()}, mf)
             finally:
@@ -144,17 +144,17 @@ async def return_all_events():
 async def insert_event(e:NewEvent, current_user:Annotated[str, Depends(get_current_user)]):
     """ Adds an event to database. """
     if not elevated_rights(current_user):
-        return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You don't have teacher or superuser rights")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You don't have teacher or superuser rights")
 
     db.conn = sqlite3.connect(db.dbname)
     classroom_id = db.get_classroom_id(e.classroom_str)
     if classroom_id == -3:
-        return HTTPException(status_code=status.HTTP_418_IM_A_TEAPOT, detail=f"no classroom in database by the name {e.classroom_str}")
+        raise HTTPException(status_code=status.HTTP_418_IM_A_TEAPOT, detail=f"no classroom in database by the name {e.classroom_str}")
     if classroom_id == -2:
-        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"database error for classrooms")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"database error for classrooms")
     promo_id = db.get_promo_id(e.promo_str)
     if promo_id < 0:
-        return HTTPException(status_code=status.HTTP_418_IM_A_TEAPOT, detail=f"no promo in database by the name {e.promo_str}")
+        raise HTTPException(status_code=status.HTTP_418_IM_A_TEAPOT, detail=f"no promo in database by the name {e.promo_str}")
     
     # convert classroom to id
     res = db.insertEvent(start=e.start,
@@ -168,33 +168,32 @@ async def insert_event(e:NewEvent, current_user:Annotated[str, Depends(get_curre
                          )
     db.conn.close()
     if res == -1:
-        return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"event starting at {e.start} for promotion {promo_id} already exists")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"event starting at {e.start} for promotion {promo_id} already exists")
     if res == -2:
-        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
-    
-    return HTTPException(status_code=status.HTTP_200_OK, detail=f"event succesfully added")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
 
+    raise HTTPException(status_code=status.HTTP_200_OK, detail=f"event succesfully added")
 @router.get("/delete")
 async def delete_event(uid_str:str, current_user:Annotated[str, Depends(get_current_user)]):
     """ Deletes an event from database using its unique id"""
     if not elevated_rights(current_user):
-        return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You don't have teacher or superuser rights")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You don't have teacher or superuser rights")
     db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
     uid = 0
     try:
         uid = int(uid_str.split('@')[0])
     except:
-        return  HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="uid error")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="uid error")
     
     res = db.deleteEvent(uid)
     db.conn.close()
     if res == -1:
-        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"event with unique id:{uid} not found")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"event with unique id:{uid} not found")
     if res == -2:
-        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
     if res == -3:
-        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"event unique id:{id} <= 0. Not possible")
-    return HTTPException(status_code=status.HTTP_200_OK, detail=f"event with unique id {id} succesfully deleted")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"event unique id:{uid} <= 0. Not possible")
+    raise HTTPException(status_code=status.HTTP_200_OK, detail=f"event with unique id {uid} succesfully deleted")
 
 
 @router.get("/event_filter")
@@ -230,7 +229,7 @@ async def get_event_ids(event_criteria: Annotated[Event, Depends()]):
     ids = db._get_events_id(query_dict) # query database for events
     
     if ids == -1:
-        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="query failed")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="query failed")
     else:
             res = db._get_events_on_ids(ids)    # returns events detail for all events  
     db.conn.close()
@@ -241,7 +240,7 @@ async def get_event_ids(event_criteria: Annotated[Event, Depends()]):
 async def insert_classroom(c: Classroom, current_user:Annotated[str, Depends(get_current_user)]):
     """ Inserts a new classroom in database. """
     if not elevated_rights(current_user):
-        return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You don't have teacher or superuser rights")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You don't have teacher or superuser rights")
     
     db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
     res = db.insertClassroom(location= c.location,
@@ -250,28 +249,26 @@ async def insert_classroom(c: Classroom, current_user:Annotated[str, Depends(get
                              )
     db.conn.close()
     if res == -1:
-        return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"classroom {c.location} already exists")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"classroom {c.location} already exists")
     if res == -2:
-        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
-    
-    return HTTPException(status_code=status.HTTP_200_OK, detail=f"classroom {c.location} succesfully added")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
 
+    raise HTTPException(status_code=status.HTTP_200_OK, detail=f"classroom {c.location} succesfully added")
 @router.post("/delete_classroom")
 async def delete_classroom(location: str, current_user:Annotated[str, Depends(get_current_user)]):
     """ Deletes a classroom from database. """
     if not elevated_rights(current_user):
-        return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You don't have teacher or superuser rights")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="You don't have teacher or superuser rights")
 
     db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
     res = db.deleteClassroom(location= location)
     db.conn.close()
     if res == -1:
-        return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"classroom {location} does not exist")
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=f"classroom {location} does not exist")
     if res == -2:
-        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
-    
-    return HTTPException(status_code=status.HTTP_200_OK, detail=f"classroom {location} succesfully deleted")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
 
+    raise HTTPException(status_code=status.HTTP_200_OK, detail=f"classroom {location} succesfully deleted")
 @router.get("/modify_event")
 async def modify_event(uid: int, e: Annotated[Event, Depends()]):
     db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
@@ -286,9 +283,9 @@ async def modify_event(uid: int, e: Annotated[Event, Depends()]):
                          )
     db.conn.close()
     if res == 0:
-        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"event with unique id:{uid} not found")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"event with unique id:{uid} not found")
     if res == -2:
-        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
     if res == -1:
-        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"event unique id:{id} <= 0 not possible or no changes detected")
-    return HTTPException(status_code=status.HTTP_200_OK, detail=f"event with unique id {id} succesfully modified")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"event unique id:{uid} <= 0 not possible or no changes detected")
+    raise HTTPException(status_code=status.HTTP_200_OK, detail=f"event with unique id {uid} succesfully modified")
