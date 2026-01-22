@@ -1,1 +1,0 @@
-import{_ as t,b as o,e as n,i as s}from"./index-B6v4qw03.js";const a={},c={class:"content"};function r(l,e){return s(),o("section",c,[...e[0]||(e[0]=[n("h1",null,"Ma page",-1),n("p",null,"Contenu à venir...",-1)])])}const i=t(a,[["render",r]]);export{i as default};
