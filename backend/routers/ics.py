@@ -271,3 +271,24 @@ async def delete_classroom(location: str, current_user:Annotated[str, Depends(ge
         return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
     
     return HTTPException(status_code=status.HTTP_200_OK, detail=f"classroom {location} succesfully deleted")
+
+@router.get("/modify_event")
+async def modify_event(uid: int, e: Annotated[Event, Depends()]):
+    db.conn = sqlite3.connect(db.dbname, check_same_thread=False)
+    res = db.modifyEvent(uid ,{'start' : e.start,
+                         'end' : e.end,
+                         'matiere': e.matiere,
+                         'type_cours' : e.type_cours,
+                         'infos_sup' : e.infos_sup,
+                         'classroom_id' : e.classroom_id, 
+                         'user_id' : e.user_id, 
+                         'promo_id' : e.promo_id   }
+                         )
+    db.conn.close()
+    if res == 0:
+        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"event with unique id:{uid} not found")
+    if res == -2:
+        return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="database error")
+    if res == -1:
+        return HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"event unique id:{id} <= 0 not possible or no changes detected")
+    return HTTPException(status_code=status.HTTP_200_OK, detail=f"event with unique id {id} succesfully modified")

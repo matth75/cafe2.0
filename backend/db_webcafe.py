@@ -118,7 +118,6 @@ class WebCafeDB:
         
         """ Create new User with example syntax : 
         db.insertUser(table_name, "login", "email@email.com", "h_password", ...)"""
-        c= None
         try:
         # Check if user already exists
             if (self._userExists(login=login)==1):
@@ -126,9 +125,7 @@ class WebCafeDB:
         
             # convert promotion string name to int
             promo_id = convertPromoStrToInt(promo_str)
-
-            c = self.conn.cursor()
-            c.execute("INSERT INTO users (login, email, nom, prenom, hpwd, birthday, promo_id, teacher, superuser, noteKfet) VALUES(? ,? ,?, ?, ?, ?, ?, ?, ?, ?)", 
+            self.conn.execute("INSERT INTO users (login, email, nom, prenom, hpwd, birthday, promo_id, teacher, superuser, noteKfet) VALUES(? ,? ,?, ?, ?, ?, ?, ?, ?, ?)", 
                           (login, email, nom, prenom, hpwd, birthday, promo_id, teacher, superuser, noteKfet))
             self.conn.commit()
             return 1 #user : {login} succesfully created
@@ -136,21 +133,19 @@ class WebCafeDB:
         except: 
             return -2    # if False insertion failed
         
-    def deleteUser(self, table_name, login:str="", id_key:int=0):
+    def deleteUser(self, login:str="", id_key:int=0):
         """ Deletes existing user"""
         try:
-            c = self.conn.cursor()
-            if (self._userExists(login=login)):
-                c.execute(f"DELETE FROM users WHERE login = ?", (login,))
-                self.conn.commit()
-                c.close()
-                return 1
+            if (self._userExists(login=login)==0):
+                return 0
+            self.conn.execute(f"DELETE FROM users WHERE login = ?", (login,))
+            self.conn.commit()
+            return 1
         except Exception:
             return -2
 
         # TODO: delete by key
 
-    
 
 
     def userGetHashedPwd(self, login:str):
@@ -164,13 +159,12 @@ class WebCafeDB:
     
     def get_user(self, login:str):
         try:
-            c = self.conn.cursor()
-            user_info = c.execute(
+
+            user_info = self.conn.execute(
                 "SELECT u.login, u.nom, u.prenom, u.email, u.birthday, COALESCE(p.promo_name, ''), u.teacher, u.superuser, u.noteKfet "
                 "FROM users u LEFT JOIN promo p ON u.promo_id = p.promo_id WHERE u.login = ?",
                 (login,),
             ).fetchone()
-            c.close()
             if user_info is None:
                 return 0 # user does not exist
             
@@ -190,25 +184,23 @@ class WebCafeDB:
             return {"login":str(user_info[0]), "nom":str(user_info[1]), "prenom":str(user_info[2]),
                     "email":str(user_info[3]), "birthday":str(user_info[4]), "promo_id":promo_name,
                       "teacher": teacher_bool, "superuser":superuser_bool, "noteKfet":str(user_info[8])}
-        except Exception:
+        except:
             return -2
         
     def user_getall(self):
-        c = self.conn.cursor()
-        users = c.execute(
-            "SELECT u.login, u.email, u.teacher, u.superuser, u.nom, u.prenom, COALESCE(p.promo_name, '') "
-            "FROM users u LEFT JOIN promo p ON u.promo_id = p.promo_id"
-        ).fetchall()
-        if users is None:   # impossible d'y arriver, il faut être superuser pour accéder à cette fonction !!
-            return -1
-        else:
+        try:
+            users = self.conn.execute(
+                "SELECT u.login, u.email, u.teacher, u.superuser, u.nom, u.prenom, COALESCE(p.promo_name, '') "
+                "FROM users u LEFT JOIN promo p ON u.promo_id = p.promo_id"
+            ).fetchall()
+            if len(users) == 0:   # impossible d'y arriver, il faut être superuser pour accéder à cette fonction !!
+                return 0
             result = {}
             fields = ["email", "teacher", "superuser", "nom", "prenom", "promo_id"]
             for row in users:
                 key = row[0]
                 values = row[1:]
                 inner_json = {}
-
                 for field, value in zip(fields, values):
                     # convert teacher and superuser fields
                     if field == "teacher" or field == "superuser":
@@ -218,48 +210,47 @@ class WebCafeDB:
                             value = False
                     inner_json[field] = value   
                 result[key] = inner_json
-            
             return result
+        except:
+            return -2
     
     def user_modify(self, login, new_infos:dict):
         valid_keys = {"nom", "prenom", "promo_id", "birthday", "noteKfet"}
-        if len(new_infos) == 0:
-            return 0  # No info to update
-        if (self._userExists(login)==0) or not set(new_infos.keys()).issubset(valid_keys):
-            return -3   # user does not exist or invalid keys
+        if (len(new_infos) == 0) or (not set(new_infos.keys()).issubset(valid_keys)):
+            return -1  # No info to update or invalid keys
+        if (self._userExists(login)==0) :
+            return 0   # user does not exist
         try:
             for key,value in new_infos.items():
                 # convert promo str to int
                 if key == "promo_id":
                     value = convertPromoStrToInt(value)
                     if value == 0:
-                        return -2
+                        return -1  # invalid promo string
                 query = f"UPDATE users SET {key} = ? WHERE login = ?"
-                self.conn.execute(query, (value, login))    # better solution !!! c.execute xxxx
+                self.conn.execute(query, (value, login)) 
                 self.conn.commit()
             return 1    # all good
         except:
-            return -2 # unable to perform modification
-   
+            return -2  # database error
+        
     
     def _userExists(self, login):
         """ Built in function to check if user exists"""
-        c = self.conn.cursor()
-        user_info = c.execute("SELECT * FROM users WHERE login = ?", (login,)).fetchone()
-        c.close()
-        if user_info is None:
-            # data sanity check already done
-            return False   # user does not exist : wrong username/password
-
-
-        return True
+        try:
+            user_info = self.conn.execute("SELECT * FROM users WHERE login = ?", (login,)).fetchone()
+            if user_info is None:
+                # data sanity check already done
+                return 0   # user does not exist : wrong username/password
+            return 1
+        except:
+            return -2
+    
     def check_superuser(self, login):
         if (self._userExists(login)==0):
             return 0   # user does not exist
         try:
-            c = self.conn.cursor()
-            su_rights = c.execute("SELECT superuser FROM users WHERE login = ?", (login,)).fetchone()
-            c.close()
+            su_rights = self.conn.execute("SELECT superuser FROM users WHERE login = ?", (login,)).fetchone()
             if su_rights[0] == 1:
                 return 1 # user is superuser
             return -1    # user is not superuser
@@ -285,12 +276,10 @@ class WebCafeDB:
         if (self._userExists(login)==0):
             return 0   # user does not exist
         try :
-            c = self.conn.cursor()
-            c.execute("UPDATE users SET teacher = 1 WHERE login = ?", (login,))
+            self.conn.execute("UPDATE users SET teacher = 1 WHERE login = ?", (login,))
             self.conn.commit()
-            c.close()
             return 1  # {f"User {login} succesfully set to teacher"   # change to number and to HTTP code result in server.py
-        except Exception:
+        except:
             return -2 # f"Unable to set user '{login}' to teacher"
         
     def remove_teacher(self, login):
@@ -318,62 +307,40 @@ class WebCafeDB:
             return -2 # error 
 
 
+        # helper to normalize datetime values to the DB string format
+    def _norm_dt(self, val):
+        # file-level import: from datetime import datetime
+        if isinstance(val, datetime):
+            # Use same format the rest of the code expects ("YYYY-MM-DD HH:MM")
+            return val.strftime("%Y-%m-%dT%H:%M")
+        return val
+    
+
     def insertEvent(self, start, end, matiere, type_cours, infos_sup:str="", classroom_id:int=0, user_id:int=0, promo_id:int=0):
         """ Add an event to the SQL database. Assume start and end are of datetime.datetime format.
         Assuming for now that classroom ids are given, maybe change this parameter later... """
 
-        def _norm_dt(val):
-            # file-level import: from datetime import datetime
-            if isinstance(val, datetime):
-                return val.strftime("%Y-%m-%dT%H:%M")
-            return val
         
-        norm_start = _norm_dt(start)
-        norm_end = _norm_dt(end)
+        norm_start = self._norm_dt(start)
+        norm_end = self._norm_dt(end)
 
         # check if event already exists
-        if (self._eventExists(start=norm_start, promo_id=promo_id)):
+        if (self._eventExists(start=norm_start, promo_id=promo_id)==1):
             return -1   # event already exists
-        c = self.conn.cursor()
-
         try:
             insert_query = "INSERT INTO events (start, end, matiere, type_cours, infos_sup, classroom_id, user_id, promo_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-            c.execute(insert_query, (norm_start, norm_end, matiere, type_cours, infos_sup, classroom_id, user_id, promo_id))
+            self.conn.execute(insert_query, (norm_start, norm_end, matiere, type_cours, infos_sup, classroom_id, user_id, promo_id))
             self.conn.commit()
-            c.close()
             return 1    # event correctly created
-
         except:
-            c.close()
             return -2   # failed insertion
 
     def _get_events_id(self, criteria: dict = {}, single: bool = False): # type: ignore
-        """
-        Retrieve event id(s) matching arbitrary criteria.
-
-        Args:
-            criteria (dict): mapping column -> value. Value can be:
-                - scalar (equality)
-                - list/tuple (IN query)
-                - None (IS NULL)
-                - datetime.datetime for 'start'/'end' (will be normalized to DB string)
-            single (bool): if True, return a single id (first match) or -1 if none.
-                           if False, return a list of ids (possibly empty).
-
-        Returns:
-            int if single=True, else list[int] or -1 on no results.
-        """
         allowed = { "start", "end", "matiere", "type_cours",
             "infos_sup", "classroom_id", "user_id", "promo_id"
         }
 
-        # helper to normalize datetime values to the DB string format
-        def _norm_dt(val):
-            # file-level import: from datetime import datetime
-            if isinstance(val, datetime):
-                # Use same format the rest of the code expects ("YYYY-MM-DD HH:MM")
-                return val.strftime("%Y-%m-%dT%H:%M")
-            return val
+
 
         # Sanitize keys and build query
         filters = []
@@ -390,13 +357,13 @@ class WebCafeDB:
                     # empty IN -> no results
                     return -1 if single else []
                 # normalize any datetime items
-                vals = [_norm_dt(v) for v in vals]
+                vals = [self._norm_dt(v) for v in vals]
                 placeholders = ", ".join(["?"] * len(vals))
                 filters.append(f"{key} IN ({placeholders})")
                 params.extend(vals)
             else:
                 # normalize datetime scalar for start/end (or any datetime passed)
-                value = _norm_dt(value)
+                value = self._norm_dt(value)
                 filters.append(f"{key} = ?")
                 params.append(value)
 
@@ -496,6 +463,66 @@ class WebCafeDB:
         finally:
             c.close()
 
+    def modifyEvent(self, event_id: int, new_infos: dict) -> int:
+        """
+        Modify an existing event identified by event_id with new_infos dictionary.
+
+        Args:
+            event_id (int): The ID of the event to modify.
+            new_infos (dict): A dictionary containing the fields to update.
+
+        Returns:
+            1  : event modified successfully
+            0  : event_id not found
+           -2  : database error (query/commit failed)
+           -1  : invalid input (empty new_infos or invalid keys)
+        """
+        allowed_keys = {"start", "end", "matiere", "type_cours",
+                        "infos_sup", "classroom_id", "user_id", "promo_id"}
+
+        if not new_infos or not set(new_infos.keys()).issubset(allowed_keys) or event_id <= 0:
+            return -1  # invalid input
+
+        # Check if event exists
+        existing_event = self.conn.execute("SELECT 1 FROM events WHERE event_id = ?", (event_id,)).fetchone()
+        if existing_event is None:
+            return 0  # event_id not found
+
+        try:
+            for key, value in new_infos.items():
+                if key == "start" or key == "end":
+                    value = self._norm_dt(value)
+                query = f"UPDATE events SET {key} = ? WHERE event_id = ?"
+                self.conn.execute(query, (value, event_id))
+            self.conn.commit()
+            return 1  # event modified successfully
+        except sqlite3.Error:
+            try:
+                self.conn.rollback()
+            except:
+                pass
+            return -2  # database error
+    
+
+    def isClassroomUsed(self, classroom_name: str, start: datetime, end: datetime):
+
+        """ Check if a classroom is used in any event. """
+        classroom_id = self.get_classroom_id(classroom_name)
+        if classroom_id < 0:
+            return -1  # classroom does not exist
+        try:
+            event_info = self.conn.execute("SELECT COUNT(*) FROM events WHERE classroom_id = ? and start = ?", (classroom_id, start,)).fetchone()[0]
+            if event_info < 0:
+                # check for time overlap
+                event_info = self.conn.execute(
+                    "SELECT COUNT(*) FROM events WHERE classroom_id = ? AND (start > ? AND start < ? OR end > ? AND end < ? OR start < ? AND end > ?)",
+                    (classroom_id, self._norm_dt(start), self._norm_dt(end), self._norm_dt(start), self._norm_dt(end), self._norm_dt(start), self._norm_dt(end)),
+                ).fetchone()[0]
+                return event_info > 0  # True if classroom is used
+            else:
+                return event_info > 0  # True if classroom is used
+        except:
+            return -2  # database error
     def insertClassroom(self, location:str, capacity:int, type:str):
         """ Insert a new classroom in the database."""
         # Check if classroom already exists
@@ -524,11 +551,11 @@ class WebCafeDB:
 
     def _eventExists(self, start, promo_id):
         """Postulat : Deux évenements d'une même promo ne peuvent pas avoir le même instant de début de cours. """
-        c = self.conn.cursor()
-        event_info = c.execute("SELECT COUNT(*) FROM events WHERE start = ? AND promo_id = ?", (start, promo_id)).fetchone()[0]
-        c.close()
-
-        return event_info > 0  # True if event exists
+        try:
+            event_info = self.conn.execute("SELECT COUNT(*) FROM events WHERE start = ? AND promo_id = ?", (start, promo_id)).fetchone()[0]
+            return event_info > 0  # True if event exists
+        except:
+            return -2  # database error
         
     
     def generate_ics(self, db_name: str, output_file: str, classroom_id: int = 0,
